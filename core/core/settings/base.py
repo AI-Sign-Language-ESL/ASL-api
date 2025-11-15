@@ -106,5 +106,13 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:62482",  # Your Flutter dev server
+    "http://127.0.0.1:62482",
+    "http://localhost:9101",  # Flutter DevTools
+    "http://127.0.0.1:9101",
+]
 
 CORS_ALLOW_ALL_ORIGINS = True

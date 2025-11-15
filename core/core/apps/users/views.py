@@ -1,9 +1,9 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView
-from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import User
 from .serializers import (
@@ -16,35 +16,14 @@ from .serializers import (
 )
 
 
-class LoginView(ListAPIView):
+@method_decorator(csrf_exempt, name="dispatch")
+class LoginView(APIView):
     """
     POST /auth/login/
-
-    Request Body:
-    {
-        "username": "string",
-        "password": "string"
-    }
-
-    Response Body:
-    {
-        "access": "string",
-        "refresh": "string",
-        "user": {
-            "id": 0,
-            "username": "string",
-            "email": "string",
-            "first_name": "string",
-            "last_name": "string",
-            "role": "string"
-        }
-    }
     """
 
-    serializer_class = LoginSerializer
-
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = LoginSerializer(data=request.data)
 
         if serializer.is_valid():
             username = serializer.validated_data["username"]
@@ -78,42 +57,14 @@ class LoginView(ListAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class BasicUserRegistrationView(ListAPIView):
+@method_decorator(csrf_exempt, name="dispatch")
+class BasicUserRegistrationView(APIView):
     """
     POST /auth/register/basic/
-
-    Request Body:
-    {
-        "username": "string",
-        "first_name": "string",
-        "last_name": "string",
-        "email": "string",
-        "password": "string",
-        "password_confirmation": "string"
-    }
-
-    Response Body:
-    {
-        "message": "string",
-        "user": {
-            "id": 0,
-            "username": "string",
-            "email": "string",
-            "first_name": "string",
-            "last_name": "string",
-            "role": "string"
-        },
-        "tokens": {
-            "access": "string",
-            "refresh": "string"
-        }
-    }
     """
 
-    serializer_class = BasicUserRegistrationSerializer
-
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = BasicUserRegistrationSerializer(data=request.data)
 
         if serializer.is_valid():
             user = serializer.save()
@@ -137,44 +88,14 @@ class BasicUserRegistrationView(ListAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class OrganizationRegistrationView(ListAPIView):
+@method_decorator(csrf_exempt, name="dispatch")
+class OrganizationRegistrationView(APIView):
     """
     POST /auth/register/organization/
-
-    Request Body:
-    {
-        "organization_name": "string",
-        "activity_type": "string",
-        "email": "string",
-        "password": "string",
-        "password_confirmation": "string",
-        "first_name": "string",
-        "last_name": "string",
-        "job_title": "string"
-    }
-
-    Response Body:
-    {
-        "message": "string",
-        "user": {
-            "id": 0,
-            "username": "string",
-            "email": "string",
-            "first_name": "string",
-            "last_name": "string",
-            "role": "string"
-        },
-        "tokens": {
-            "access": "string",
-            "refresh": "string"
-        }
-    }
     """
 
-    serializer_class = OrganizationRegistrationSerializer
-
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer = OrganizationRegistrationSerializer(data=request.data)
 
         if serializer.is_valid():
             organization = serializer.save()
