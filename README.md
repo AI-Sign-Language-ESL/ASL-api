@@ -20,16 +20,6 @@
       <img alt="GitHub Tag" src="https://img.shields.io/github/v/tag/AI-Sign-Language-ESL/ASL-api">
       <img alt="Python Version" src="https://img.shields.io/badge/python-3.12%2B-blue">
       <img alt="Docker" src="https://img.shields.io/badge/docker-ready-blue">
-    </p>
-
-    <a href="#about-the-project">About</a>
-    ·
-    <a href="#getting-started">Getting Started</a>
-    ·
-    <a href="https://github.com/AI-Sign-Language-ESL/ASL-api/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/AI-Sign-Language-ESL/ASL-api/issues">Request Feature</a>
-  </p>
 </div>
 
 ---
