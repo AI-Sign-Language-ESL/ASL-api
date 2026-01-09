@@ -3,8 +3,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from src.tafahom_api.apps.v1.billing.models import Subscription
-from src.tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.billing.models import Subscription
+from tafahom_api.apps.v1.users.models import User
+
 
 @pytest.mark.django_db
 class TestSubscriptionPlansAPI:
@@ -35,6 +36,7 @@ class TestSubscriptionPlansAPI:
         assert len(response.data) == 1
         assert response.data[0]["plan_type"] == "free"
 
+
 @pytest.mark.django_db
 class TestMySubscriptionAPI:
     def test_get_existing_subscription(
@@ -44,9 +46,7 @@ class TestMySubscriptionAPI:
         jwt_user_token: str,
         user_subscription,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response: Response = client.get("/billing/my-subscription/")
 
@@ -61,9 +61,7 @@ class TestMySubscriptionAPI:
         jwt_user_token: str,
         free_plan,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         Subscription.objects.filter(user=existing_user).delete()
 
@@ -77,6 +75,7 @@ class TestMySubscriptionAPI:
         response = client.get("/billing/my-subscription/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+
 @pytest.mark.django_db
 class TestSubscribeAPI:
     def test_subscribe_success(
@@ -86,9 +85,7 @@ class TestSubscribeAPI:
         jwt_user_token: str,
         paid_plan,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         payload = {
             "plan_id": paid_plan.id,
@@ -108,9 +105,7 @@ class TestSubscribeAPI:
         client: APIClient,
         jwt_user_token: str,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response: Response = client.post(
             "/billing/subscribe/",
@@ -126,6 +121,7 @@ class TestSubscribeAPI:
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+
 @pytest.mark.django_db
 class TestCancelSubscriptionAPI:
     def test_cancel_subscription_success(
@@ -134,9 +130,7 @@ class TestCancelSubscriptionAPI:
         jwt_user_token: str,
         user_subscription,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response: Response = client.post("/billing/cancel/")
 
@@ -150,9 +144,7 @@ class TestCancelSubscriptionAPI:
         existing_user: User,
         jwt_user_token: str,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         Subscription.objects.filter(user=existing_user).delete()
 
@@ -160,7 +152,8 @@ class TestCancelSubscriptionAPI:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "No active subscription" in response.data["detail"]
-        
+
+
 @pytest.mark.django_db
 class TestBillingPermissions:
     def test_anonymous_user_cannot_subscribe(self, client: APIClient):

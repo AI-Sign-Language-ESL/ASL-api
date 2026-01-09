@@ -3,18 +3,17 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from src.tafahom_api.apps.v1.authentication import models
+from tafahom_api.apps.v1.authentication import models
 
 
 # ======================================================
 # 🔐 LOGIN
 # ======================================================
 
+
 @pytest.mark.django_db
 class TestLoginAPI:
-    def test_login_success(
-        self, client: APIClient, existing_user, jwt_user_token
-    ):
+    def test_login_success(self, client: APIClient, existing_user, jwt_user_token):
         response: Response = client.post(
             "/authentication/login/",
             {
@@ -28,9 +27,7 @@ class TestLoginAPI:
         assert "access" in response.data["tokens"]
         assert "refresh" in response.data["tokens"]
 
-    def test_login_invalid_password(
-        self, client: APIClient, existing_user
-    ):
+    def test_login_invalid_password(self, client: APIClient, existing_user):
         response: Response = client.post(
             "/authentication/login/",
             {
@@ -57,11 +54,10 @@ class TestLoginAPI:
 # 🔐 LOGIN WITH 2FA
 # ======================================================
 
+
 @pytest.mark.django_db
 class TestLogin2FAAPI:
-    def test_login_2fa_invalid_token(
-        self, client: APIClient, existing_user
-    ):
+    def test_login_2fa_invalid_token(self, client: APIClient, existing_user):
         models.TwoFactorAuth.objects.create(
             user=existing_user,
             secret_key="INVALIDSECRET",
@@ -94,11 +90,10 @@ class TestLogin2FAAPI:
 # 🌐 GOOGLE LOGIN
 # ======================================================
 
+
 @pytest.mark.django_db
 class TestGoogleLoginAPI:
-    def test_google_login_success(
-        self, client: APIClient, existing_user, monkeypatch
-    ):
+    def test_google_login_success(self, client: APIClient, existing_user, monkeypatch):
         def fake_google_auth(token):
             return existing_user
 
@@ -120,11 +115,10 @@ class TestGoogleLoginAPI:
 # 🔄 REFRESH TOKEN
 # ======================================================
 
+
 @pytest.mark.django_db
 class TestRefreshTokenAPI:
-    def test_refresh_token_success(
-        self, client: APIClient, existing_user
-    ):
+    def test_refresh_token_success(self, client: APIClient, existing_user):
         from rest_framework_simplejwt.tokens import RefreshToken
 
         refresh = RefreshToken.for_user(existing_user)
@@ -142,15 +136,14 @@ class TestRefreshTokenAPI:
 # 🛡️ TWO FACTOR AUTH
 # ======================================================
 
+
 @pytest.mark.django_db
 class TestTwoFactorAPI:
     def test_2fa_setup_requires_auth(self, client: APIClient):
         response: Response = client.post("/authentication/2fa/setup/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_2fa_setup_success(
-        self, client: APIClient, existing_user, jwt_user_token
-    ):
+    def test_2fa_setup_success(self, client: APIClient, existing_user, jwt_user_token):
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response: Response = client.post("/authentication/2fa/setup/")
@@ -163,6 +156,7 @@ class TestTwoFactorAPI:
 # ======================================================
 # 🔑 PASSWORD MANAGEMENT
 # ======================================================
+
 
 @pytest.mark.django_db
 class TestPasswordAPI:
@@ -201,6 +195,7 @@ class TestPasswordAPI:
 # 🚨 LOGIN ATTEMPTS
 # ======================================================
 
+
 @pytest.mark.django_db
 class TestLoginAttemptsAPI:
     def test_user_can_view_own_attempts(
@@ -221,9 +216,7 @@ class TestLoginAttemptsAPI:
 
         assert response.status_code == status.HTTP_200_OK
 
-    def test_user_cannot_view_all_attempts(
-        self, client: APIClient, jwt_user_token
-    ):
+    def test_user_cannot_view_all_attempts(self, client: APIClient, jwt_user_token):
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response: Response = client.get("/authentication/login/attempts/all/")

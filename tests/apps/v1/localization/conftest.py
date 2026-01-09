@@ -1,14 +1,15 @@
 import pytest
 
-from src.tafahom_api.apps.v1.localization.models import TranslationKey
+from tafahom_api.apps.v1.localization.models import TranslationKey
 
 
 # =====================================================
 # TRANSLATION KEYS
 # =====================================================
 
+
 @pytest.fixture
-def translation_key_en_ar(db) -> TranslationKey:
+def translation_key_en_ar(db: None) -> TranslationKey:
     return TranslationKey.objects.create(
         key="welcome_message",
         description="Welcome message",
@@ -19,7 +20,7 @@ def translation_key_en_ar(db) -> TranslationKey:
 
 
 @pytest.fixture
-def translation_key_auth(db) -> TranslationKey:
+def translation_key_auth(db: None) -> TranslationKey:
     return TranslationKey.objects.create(
         key="login",
         description="Login button",

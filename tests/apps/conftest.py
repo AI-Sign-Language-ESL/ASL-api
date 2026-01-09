@@ -1,8 +1,7 @@
 import pytest
 from rest_framework_simplejwt.tokens import RefreshToken
-from src.tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.users.models import User
 from api_client import PrefixedAPIClient
-
 
 
 @pytest.fixture
@@ -12,6 +11,7 @@ def api_client():
     Used by ALL apps
     """
     return PrefixedAPIClient()
+
 
 @pytest.fixture(scope="session")
 def django_db_setup(django_db_setup, django_db_blocker):
@@ -23,14 +23,12 @@ def django_db_setup(django_db_setup, django_db_blocker):
 
 
 @pytest.fixture
-def user(db)->User:
+def user(db) -> User:
     """
     Base test user
     """
     return User.objects.create_user(
-        username="testuser",
-        email="test@test.com",
-        password="password123"
+        username="testuser", email="test@test.com", password="password123"
     )
 
 
@@ -51,7 +49,5 @@ def auth_client(api_client, auth_tokens):
     """
     Authenticated API client
     """
-    api_client.credentials(
-        HTTP_AUTHORIZATION=f"Bearer {auth_tokens['access']}"
-    )
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {auth_tokens['access']}")
     return api_client

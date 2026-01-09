@@ -1,14 +1,15 @@
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from src.tafahom_api.apps.v1.dataset.models import DatasetContribution
-from src.tafahom_api.apps.v1.users.models import User
-from src.tafahom_api.apps.v1.billing.models import SubscriptionPlan, Subscription
+from tafahom_api.apps.v1.dataset.models import DatasetContribution
+from tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.billing.models import SubscriptionPlan, Subscription
 
 
 # =====================================================
 # VIDEO FILE
 # =====================================================
+
 
 @pytest.fixture
 def valid_video_file() -> SimpleUploadedFile:
@@ -22,6 +23,7 @@ def valid_video_file() -> SimpleUploadedFile:
 # =====================================================
 # DATASET CONTRIBUTION
 # =====================================================
+
 
 @pytest.fixture
 def dataset_contribution(
@@ -40,6 +42,7 @@ def dataset_contribution(
 # =====================================================
 # BILLING (FOR REWARD FLOW)
 # =====================================================
+
 
 @pytest.fixture
 def free_plan(db) -> SubscriptionPlan:

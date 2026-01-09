@@ -1,10 +1,10 @@
 import pytest
 
-from src.tafahom_api.apps.v1.translation.models import (
+from tafahom_api.apps.v1.translation.models import (
     TranslationRequest,
     SignLanguageConfig,
 )
-from src.tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.users.models import User
 
 
 @pytest.fixture

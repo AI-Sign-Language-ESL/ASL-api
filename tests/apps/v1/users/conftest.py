@@ -1,12 +1,12 @@
 import pytest
 from rest_framework_simplejwt.tokens import AccessToken
-from src.tafahom_api.apps.v1.users.models import Organization, User
-
+from tafahom_api.apps.v1.users.models import Organization, User
 
 
 # =====================================================
 # USERS
 # =====================================================
+
 
 @pytest.fixture
 def basic_user(db) -> User:
@@ -53,6 +53,7 @@ def admin_user(db) -> User:
 # =====================================================
 # JWT TOKENS (NU-QURAN STYLE)
 # =====================================================
+
 
 @pytest.fixture
 def jwt_basic_user_token(basic_user) -> str:

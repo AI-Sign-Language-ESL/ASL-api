@@ -3,8 +3,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from src.tafahom_api.apps.v1.localization.models import TranslationKey
-from src.tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.localization.models import TranslationKey
+from tafahom_api.apps.v1.users.models import User
+
 
 @pytest.mark.django_db
 class TestLanguageListAPI:
@@ -20,6 +21,7 @@ class TestLanguageListAPI:
         codes = [lang["code"] for lang in response.data["languages"]]
 
         assert "ar" in codes
+
 
 @pytest.mark.django_db
 class TestSetLanguageAPI:
@@ -42,17 +44,17 @@ class TestSetLanguageAPI:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+
 @pytest.mark.django_db
 class TestCurrentLanguageAPI:
     def test_current_language_default(self, client: APIClient):
-        response: Response = client.get(
-            "/localization/current-language/"
-        )
+        response: Response = client.get("/localization/current-language/")
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["language_code"] in ["en", "ar"]
         assert "direction" in response.data
         assert "is_rtl" in response.data
+
 
 @pytest.mark.django_db
 class TestBulkTranslationAPI:
@@ -122,6 +124,7 @@ class TestBulkTranslationAPI:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+
 @pytest.mark.django_db
 class TestTranslationKeyAdminListAPI:
     def test_admin_can_list_keys(
@@ -131,9 +134,7 @@ class TestTranslationKeyAdminListAPI:
         jwt_admin_token: str,
         translation_key_en_ar: TranslationKey,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}")
 
         response: Response = client.get("/localization/keys/")
 
@@ -145,12 +146,11 @@ class TestTranslationKeyAdminListAPI:
         client: APIClient,
         jwt_user_token: str,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response = client.get("/localization/keys/")
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
 
 @pytest.mark.django_db
 class TestTranslationKeyUpdateAPI:
@@ -161,9 +161,7 @@ class TestTranslationKeyUpdateAPI:
         jwt_admin_token: str,
         translation_key_en_ar: TranslationKey,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}")
 
         response: Response = client.patch(
             f"/localization/keys/{translation_key_en_ar.id}/",
@@ -175,6 +173,7 @@ class TestTranslationKeyUpdateAPI:
 
         translation_key_en_ar.refresh_from_db()
         assert translation_key_en_ar.text_en == "Welcome Updated"
+
 
 @pytest.mark.django_db
 class TestLocalizationPermissions:

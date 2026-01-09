@@ -11,10 +11,9 @@ build-backend = "setuptools.build_meta"
 DJANGO_SETTINGS_MODULE = "tafahom_api.settings.base"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
-addopts = "-ra"
+pythonpath = ["."]
+addopts = "-ra --import-mode=importlib"
 asyncio_mode = "auto"
-# This tells pytest that the root of your package is inside 'src'
-pythonpath = ["src"]
 
 
 # =====================================================

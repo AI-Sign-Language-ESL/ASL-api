@@ -3,8 +3,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from src.tafahom_api.apps.v1.dataset.models import DatasetContribution
-from src.tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.dataset.models import DatasetContribution
+from tafahom_api.apps.v1.users.models import User
+
 
 @pytest.mark.django_db
 class TestDatasetContributionCreateAPI:
@@ -15,9 +16,7 @@ class TestDatasetContributionCreateAPI:
         jwt_user_token: str,
         valid_video_file,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         payload = {
             "word": "hello",
@@ -49,9 +48,7 @@ class TestDatasetContributionCreateAPI:
         jwt_user_token: str,
         valid_video_file,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response = client.post(
             "/dataset/contributions/",
@@ -62,6 +59,7 @@ class TestDatasetContributionCreateAPI:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "word" in response.data
 
+
 @pytest.mark.django_db
 class TestMyDatasetContributionsAPI:
     def test_list_my_contributions(
@@ -71,17 +69,14 @@ class TestMyDatasetContributionsAPI:
         jwt_user_token: str,
         dataset_contribution,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
-        response: Response = client.get(
-            "/dataset/contributions/me/"
-        )
+        response: Response = client.get("/dataset/contributions/me/")
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 1
         assert response.data[0]["word"] == "hello"
+
 
 @pytest.mark.django_db
 class TestPendingDatasetContributionsAPI:
@@ -92,13 +87,9 @@ class TestPendingDatasetContributionsAPI:
         jwt_admin_token: str,
         dataset_contribution,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}")
 
-        response: Response = client.get(
-            "/dataset/admin/contributions/pending/"
-        )
+        response: Response = client.get("/dataset/admin/contributions/pending/")
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 1
@@ -108,15 +99,12 @@ class TestPendingDatasetContributionsAPI:
         client: APIClient,
         jwt_user_token: str,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
-        response = client.get(
-            "/dataset/admin/contributions/pending/"
-        )
+        response = client.get("/dataset/admin/contributions/pending/")
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
 
 @pytest.mark.django_db
 class TestApproveDatasetContributionAPI:
@@ -128,9 +116,7 @@ class TestApproveDatasetContributionAPI:
         dataset_contribution,
         free_plan,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}")
 
         response: Response = client.post(
             f"/dataset/admin/contributions/{dataset_contribution.id}/approve/"
@@ -142,6 +128,7 @@ class TestApproveDatasetContributionAPI:
         assert dataset_contribution.status == "approved"
         assert dataset_contribution.reviewer == admin_user
 
+
 @pytest.mark.django_db
 class TestRejectDatasetContributionAPI:
     def test_reject_success(
@@ -151,9 +138,7 @@ class TestRejectDatasetContributionAPI:
         jwt_admin_token: str,
         dataset_contribution,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}")
 
         response: Response = client.post(
             f"/dataset/admin/contributions/{dataset_contribution.id}/reject/"
@@ -169,15 +154,12 @@ class TestRejectDatasetContributionAPI:
         client: APIClient,
         jwt_admin_token: str,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_admin_token}")
 
-        response = client.post(
-            "/dataset/admin/contributions/999999/reject/"
-        )
+        response = client.post("/dataset/admin/contributions/999999/reject/")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 @pytest.mark.django_db
 class TestDatasetPermissions:
@@ -187,9 +169,7 @@ class TestDatasetPermissions:
         jwt_user_token: str,
         dataset_contribution,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response = client.post(
             f"/dataset/admin/contributions/{dataset_contribution.id}/approve/"

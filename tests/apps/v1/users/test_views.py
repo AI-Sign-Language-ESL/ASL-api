@@ -3,7 +3,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from src.tafahom_api.apps.v1.users.models import User, Organization
+from tafahom_api.apps.v1.users.models import User, Organization
+
 
 @pytest.mark.django_db
 class TestBasicUserRegistrationAPI:
@@ -39,6 +40,8 @@ class TestBasicUserRegistrationAPI:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "confirmPassword" in response.data
+
+
 @pytest.mark.django_db
 class TestOrganizationRegistrationAPI:
     def test_register_organization_success(self, client: APIClient):
@@ -53,15 +56,13 @@ class TestOrganizationRegistrationAPI:
             "job_title": "Director",
         }
 
-        response: Response = client.post(
-            "/users/register/organization/", payload
-        )
+        response: Response = client.post("/users/register/organization/", payload)
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["user"]["role"] == "organization"
-        assert Organization.objects.filter(
-            organization_name="Edu Org"
-        ).exists()
+        assert Organization.objects.filter(organization_name="Edu Org").exists()
+
+
 @pytest.mark.django_db
 class TestMyProfileAPI:
     def test_get_my_profile(
@@ -70,9 +71,7 @@ class TestMyProfileAPI:
         basic_user,
         jwt_basic_user_token,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}")
 
         response: Response = client.get("/users/me/")
 
@@ -82,6 +81,8 @@ class TestMyProfileAPI:
     def test_profile_requires_auth(self, client: APIClient):
         response = client.get("/users/me/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
 @pytest.mark.django_db
 class TestProfileUpdateAPI:
     def test_update_profile_success(
@@ -90,9 +91,7 @@ class TestProfileUpdateAPI:
         basic_user,
         jwt_basic_user_token,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}")
 
         payload = {"first_name": "Updated", "last_name": "Name"}
         response = client.patch("/users/me/update/", payload)
@@ -100,6 +99,8 @@ class TestProfileUpdateAPI:
         assert response.status_code == status.HTTP_200_OK
         basic_user.refresh_from_db()
         assert basic_user.first_name == "Updated"
+
+
 @pytest.mark.django_db
 class TestChangeEmailAPI:
     def test_change_email_success(
@@ -108,9 +109,7 @@ class TestChangeEmailAPI:
         basic_user,
         jwt_basic_user_token,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}")
 
         response = client.patch(
             "/users/me/email/",
@@ -120,6 +119,8 @@ class TestChangeEmailAPI:
         assert response.status_code == status.HTTP_200_OK
         basic_user.refresh_from_db()
         assert basic_user.email == "updated@example.com"
+
+
 @pytest.mark.django_db
 class TestUserPermissions:
     def test_user_cannot_update_other_user(
@@ -129,9 +130,7 @@ class TestUserPermissions:
         organization_user,
         jwt_basic_user_token,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_basic_user_token}")
 
         response = client.patch(
             f"/users/{organization_user.id}/",

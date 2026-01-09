@@ -1,7 +1,7 @@
 import pytest
 from channels.testing import WebsocketCommunicator
 
-from config.asgi import application
+from tafahom_api.config.asgi import application
 
 
 @pytest.mark.asyncio
@@ -15,6 +15,7 @@ class TestTranslationWebSocketAuth:
 
         connected, _ = await communicator.connect()
         assert connected is False
+
 
 @pytest.mark.asyncio
 @pytest.mark.django_db
@@ -34,6 +35,7 @@ class TestTranslationWebSocketFlow:
 
         await communicator.disconnect()
 
+
 @pytest.mark.asyncio
 @pytest.mark.django_db
 class TestTranslationWebSocketStreaming:
@@ -49,9 +51,7 @@ class TestTranslationWebSocketStreaming:
         connected, _ = await communicator.connect()
         assert connected
 
-        await communicator.send_json_to(
-            {"action": "start", "output_type": "text"}
-        )
+        await communicator.send_json_to({"action": "start", "output_type": "text"})
 
         response = await communicator.receive_json_from()
         assert response["type"] == "status"

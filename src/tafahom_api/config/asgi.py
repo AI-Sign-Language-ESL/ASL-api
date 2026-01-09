@@ -1,5 +1,3 @@
-
-
 import os
 import django
 from django.core.asgi import get_asgi_application
@@ -10,10 +8,7 @@ from tafahom_api.apps.v1.authentication.middleware import JWTAuthMiddlewareStack
 # -----------------------------------------------------------------------------
 # Settings
 # -----------------------------------------------------------------------------
-os.environ.setdefault(
-    "DJANGO_SETTINGS_MODULE",
-    "config.settings.base"
-)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tafahom_api.settings.base")
 
 # IMPORTANT: initialize Django explicitly
 django.setup()
@@ -23,10 +18,7 @@ application = ProtocolTypeRouter(
     {
         # HTTP requests
         "http": get_asgi_application(),
-
         # WebSocket connections
-        "websocket": JWTAuthMiddlewareStack(
-            URLRouter(websocket_urlpatterns)
-        ),
+        "websocket": JWTAuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
     }
 )

@@ -54,20 +54,17 @@ SECURE_SSL_REDIRECT = ENVIRONMENT == "PROD"
 # =============================================================================
 INSTALLED_APPS = [
     "daphne",
-
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "rest_framework",
     "rest_framework_simplejwt",
     "drf_spectacular",
     "corsheaders",
     "channels",
-
     "tafahom_api.apps.v1.users",
     "tafahom_api.apps.v1.authentication",
     "tafahom_api.apps.v1.dataset",
@@ -136,9 +133,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
 }
 
 SIMPLE_JWT = {
@@ -207,9 +202,7 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "default": {
-            "format": "[%(asctime)s] %(levelname)s %(name)s %(message)s"
-        },
+        "default": {"format": "[%(asctime)s] %(levelname)s %(name)s %(message)s"},
     },
     "handlers": {
         "console": {

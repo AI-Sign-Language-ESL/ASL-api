@@ -3,7 +3,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
-from src.tafahom_api.apps.v1.translation.models import TranslationRequest
+from tafahom_api.apps.v1.translation.models import TranslationRequest
+
 
 @pytest.mark.django_db
 class TestSignLanguagesAPI:
@@ -14,6 +15,7 @@ class TestSignLanguagesAPI:
         codes = [lang["code"] for lang in response.data]
         assert "ase" in codes
 
+
 @pytest.mark.django_db
 class TestCreateTranslationRequestAPI:
     def test_create_translation_request(
@@ -22,9 +24,7 @@ class TestCreateTranslationRequestAPI:
         jwt_user_token: str,
         asl_language,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
         response: Response = client.post(
             "/translation/requests/",
@@ -53,6 +53,7 @@ class TestCreateTranslationRequestAPI:
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+
 @pytest.mark.django_db
 class TestMyTranslationRequestsAPI:
     def test_list_my_requests(
@@ -61,14 +62,9 @@ class TestMyTranslationRequestsAPI:
         jwt_user_token: str,
         translation_request,
     ):
-        client.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}"
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
-        response: Response = client.get(
-            "/translation/requests/me/"
-        )
+        response: Response = client.get("/translation/requests/me/")
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 1
-

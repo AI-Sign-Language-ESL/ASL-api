@@ -1,8 +1,8 @@
 import pytest
 from rest_framework_simplejwt.tokens import AccessToken
 
-from src.tafahom_api.apps.v1.users.models import User
-from src.tafahom_api.apps.v1.billing.models import (
+from tafahom_api.apps.v1.users.models import User
+from tafahom_api.apps.v1.billing.models import (
     SubscriptionPlan,
     Subscription,
 )
@@ -11,6 +11,7 @@ from src.tafahom_api.apps.v1.billing.models import (
 # =====================================================
 # PLANS
 # =====================================================
+
 
 @pytest.fixture
 def free_plan(db) -> SubscriptionPlan:
@@ -38,6 +39,7 @@ def paid_plan(db) -> SubscriptionPlan:
 # SUBSCRIPTIONS
 # =====================================================
 
+
 @pytest.fixture
 def user_subscription(
     db,
@@ -57,6 +59,7 @@ def user_subscription(
 # =====================================================
 # JWT (OPTIONAL IF YOU WANT LOCAL TOKENS)
 # =====================================================
+
 
 @pytest.fixture
 def jwt_user_token(existing_user: User) -> str:

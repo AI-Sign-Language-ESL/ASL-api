@@ -8,4 +8,4 @@ class UsersConfig(AppConfig):
 
     def ready(self):
         # This line is required to activate the billing signal!
-        import tafahom_api.apps.v1.users.signals
+        from . import signals
