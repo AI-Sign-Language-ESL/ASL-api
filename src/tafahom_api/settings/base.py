@@ -1,7 +1,7 @@
 from datetime import timedelta
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
-
+from ..apps import v1
 from .env import (
     BASE_DIR,
     ENVIRONMENT,
@@ -32,8 +32,8 @@ SECRET_KEY = SECRET_KEY
 DEBUG = ENVIRONMENT != "PROD"
 ALLOWED_HOSTS = ALLOWED_HOSTS
 
-ROOT_URLCONF = "config.urls"
-ASGI_APPLICATION = "config.asgi.application"
+ROOT_URLCONF = "tafahom_api.urls"
+ASGI_APPLICATION = "tafahom_api.asgi.application"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # =============================================================================
@@ -65,12 +65,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "corsheaders",
     "channels",
-    "tafahom_api.apps.v1.users",
-    "tafahom_api.apps.v1.authentication",
-    "tafahom_api.apps.v1.dataset",
-    "tafahom_api.apps.v1.billing",
-    "tafahom_api.apps.v1.translation.apps.TranslationConfig",
-    "tafahom_api.apps.v1.localization",
+    *v1.APPS,
 ]
 
 # =============================================================================
@@ -143,6 +138,7 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+AUTH_USER_MODEL = "users.User"
 
 # =============================================================================
 # CHANNELS
