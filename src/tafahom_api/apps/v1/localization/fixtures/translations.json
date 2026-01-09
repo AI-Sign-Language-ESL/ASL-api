@@ -1,0 +1,255 @@
+[
+    {
+        "model": "localization.translationkey",
+        "pk": 1,
+        "fields": {
+            "key": "welcome_message",
+            "description": "Main welcome message on homepage",
+            "context": "homepage",
+            "text_en": "Welcome to TAFAHOM",
+            "text_ar": "اهلا وسهلا بكم في تفاهم"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 2,
+        "fields": {
+            "key": "sign_up",
+            "description": "Sign up button text",
+            "context": "authentication",
+            "text_en": "Sign Up",
+            "text_ar": "إنشاء حساب"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 3,
+        "fields": {
+            "key": "login",
+            "description": "Login button text",
+            "context": "authentication",
+            "text_en": "Login",
+            "text_ar": "تسجيل الدخول"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 4,
+        "fields": {
+            "key": "email",
+            "description": "Email field label",
+            "context": "forms",
+            "text_en": "Email",
+            "text_ar": "البريد الإلكتروني"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 5,
+        "fields": {
+            "key": "password",
+            "description": "Password field label",
+            "context": "forms",
+            "text_en": "Password",
+            "text_ar": "كلمة المرور"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 6,
+        "fields": {
+            "key": "confirm_password",
+            "description": "Confirm password field label",
+            "context": "forms",
+            "text_en": "Confirm Password",
+            "text_ar": "تأكيد كلمة المرور"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 7,
+        "fields": {
+            "key": "forgot_password",
+            "description": "Forgot password link text",
+            "context": "authentication",
+            "text_en": "Forgot Password?",
+            "text_ar": "هل نسيت كلمة المرور؟"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 8,
+        "fields": {
+            "key": "reset_password",
+            "description": "Reset password button text",
+            "context": "authentication",
+            "text_en": "Reset Password",
+            "text_ar": "إعادة تعيين كلمة المرور"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 9,
+        "fields": {
+            "key": "first_name",
+            "description": "First name field label",
+            "context": "forms",
+            "text_en": "First Name",
+            "text_ar": "الاسم الأول"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 10,
+        "fields": {
+            "key": "last_name",
+            "description": "Last name field label",
+            "context": "forms",
+            "text_en": "Last Name",
+            "text_ar": "اسم العائلة"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 11,
+        "fields": {
+            "key": "organization_name",
+            "description": "Organization name field label",
+            "context": "forms",
+            "text_en": "Organization Name",
+            "text_ar": "اسم المنظمة"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 12,
+        "fields": {
+            "key": "activity_type",
+            "description": "Activity type field label",
+            "context": "forms",
+            "text_en": "Activity Type",
+            "text_ar": "نوع النشاط"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 13,
+        "fields": {
+            "key": "job_title",
+            "description": "Job title field label",
+            "context": "forms",
+            "text_en": "Job Title",
+            "text_ar": "الوظيفة"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 14,
+        "fields": {
+            "key": "invalid_credentials",
+            "description": "Invalid login credentials error message",
+            "context": "errors",
+            "text_en": "Invalid username or password",
+            "text_ar": "اسم المستخدم أو كلمة المرور غير صحيحة"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 15,
+        "fields": {
+            "key": "user_not_found",
+            "description": "User not found error message",
+            "context": "errors",
+            "text_en": "User not found",
+            "text_ar": "المستخدم غير موجود"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 16,
+        "fields": {
+            "key": "password_not_match",
+            "description": "Password mismatch error message",
+            "context": "errors",
+            "text_en": "Password does not match",
+            "text_ar": "كلمة المرور غير متطابقة"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 17,
+        "fields": {
+            "key": "username_exists",
+            "description": "Username already exists error message",
+            "context": "errors",
+            "text_en": "Username already exists",
+            "text_ar": "اسم المستخدم موجود بالفعل"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 18,
+        "fields": {
+            "key": "email_exists",
+            "description": "Email already exists error message",
+            "context": "errors",
+            "text_en": "Email already exists",
+            "text_ar": "البريد الإلكتروني موجود بالفعل"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 19,
+        "fields": {
+            "key": "user_registered",
+            "description": "User registered success message",
+            "context": "messages",
+            "text_en": "User registered successfully",
+            "text_ar": "تم تسجيل المستخدم بنجاح"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 20,
+        "fields": {
+            "key": "organization_registered",
+            "description": "Organization registered success message",
+            "context": "messages",
+            "text_en": "Organization registered successfully",
+            "text_ar": "تم تسجيل الشركة بنجاح"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 21,
+        "fields": {
+            "key": "password_reset_email_sent",
+            "description": "Password reset email sent message",
+            "context": "messages",
+            "text_en": "Password reset email sent",
+            "text_ar": "تم إرسال بريد إلكتروني لإعادة تعيين كلمة المرور"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 22,
+        "fields": {
+            "key": "password_reset_success",
+            "description": "Password reset success message",
+            "context": "messages",
+            "text_en": "Password has been reset successfully",
+            "text_ar": "تم إعادة تعيين كلمة المرور بنجاح"
+        }
+    },
+    {
+        "model": "localization.translationkey",
+        "pk": 23,
+        "fields": {
+            "key": "logout",
+            "description": "Logout button text",
+            "context": "authentication",
+            "text_en": "Logout",
+            "text_ar": "تسجيل الخروج"
+        }
+    }
+]

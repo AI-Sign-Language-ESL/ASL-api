@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+# =====================================================
+# PYTEST CONFIG
+# =====================================================
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tafahom_api.settings.base"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-ra"
+asyncio_mode = "auto"
+# This tells pytest that the root of your package is inside 'src'
+pythonpath = ["src"]
+
+
+# =====================================================
+# BLACK FORMATTER
+# =====================================================
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+  migrations
+| .venv
+| venv
+| __pycache__
+)/
+'''
+
+
+# =====================================================
+# ISORT
+# =====================================================
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip = ["migrations", ".venv", "venv"]
+
+
+# =====================================================
+# PYRIGHT (VS CODE INTELLISENSE)
+# =====================================================
+
+[tool.pyright]
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingTypeStubs = false
+# This tells VS Code/Pylance to look inside 'src' to resolve imports
+extraPaths = ["src"]

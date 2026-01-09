@@ -1,0 +1,38 @@
+[
+    {
+        "model": "translation.signlanguageconfig",
+        "pk": 1,
+        "fields": {
+            "code": "ase",
+            "name_en": "American Sign Language",
+            "name_ar": "اللغة الأمريكية للإشارة",
+            "description": "American Sign Language (ASL) is a complete, natural language that serves as the predominant sign language of Deaf communities in the United States and most of Anglophone Canada.",
+            "region": "North America",
+            "country_code": "US",
+            "supported_spoken_languages": [
+                "en-US"
+            ],
+            "has_avatar_support": true,
+            "has_video_support": true,
+            "is_active": true
+        }
+    },
+    {
+        "model": "translation.signlanguageconfig",
+        "pk": 2,
+        "fields": {
+            "code": "egs",
+            "name_en": "Egyptian Sign Language",
+            "name_ar": "اللغة العربيه المصريه للإشارة",
+            "description": "Egyptian Sign Language (EGS) is the sign language used by the Deaf community in Egypt. It has its own unique grammar and vocabulary, distinct from other sign languages.",
+            "region": "Africa",
+            "country_code": "EG",
+            "supported_spoken_languages": [
+                "ar-EG"
+            ],
+            "has_avatar_support": true,
+            "has_video_support": true,
+            "is_active": true
+        }
+    }
+]
