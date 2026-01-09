@@ -4,6 +4,9 @@ from drf_spectacular.utils import extend_schema_field
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    credits_per_month: serializers.IntegerField = serializers.IntegerField(default=50)
+    price: serializers.FloatField = serializers.FloatField(default=0)
+
     class Meta:
         model = SubscriptionPlan
         fields = (

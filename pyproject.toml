@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 DJANGO_SETTINGS_MODULE = "tafahom_api.settings.base"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src"]
 addopts = "-ra --import-mode=importlib"
 asyncio_mode = "auto"
 

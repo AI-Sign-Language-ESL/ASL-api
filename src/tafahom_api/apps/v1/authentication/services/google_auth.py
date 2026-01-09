@@ -1,10 +1,8 @@
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-
-User = get_user_model()
+from tafahom_api.apps.v1.users.models import User
 
 
 def authenticate_with_google(token: str):

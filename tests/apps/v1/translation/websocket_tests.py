@@ -1,7 +1,7 @@
 import pytest
 from channels.testing import WebsocketCommunicator
 
-from tafahom_api.config.asgi import application
+from tafahom_api.asgi import application
 
 
 @pytest.mark.asyncio

@@ -1,16 +1,6 @@
 import pytest
 from rest_framework_simplejwt.tokens import RefreshToken
 from tafahom_api.apps.v1.users.models import User
-from api_client import PrefixedAPIClient
-
-
-@pytest.fixture
-def api_client():
-    """
-    Global API client with /api/v1 prefix
-    Used by ALL apps
-    """
-    return PrefixedAPIClient()
 
 
 @pytest.fixture(scope="session")

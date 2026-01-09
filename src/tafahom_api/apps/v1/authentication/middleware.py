@@ -1,5 +1,5 @@
-from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+from urllib.parse import parse_qs
 
 from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
@@ -7,16 +7,11 @@ from channels.db import database_sync_to_async
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
-from urllib.parse import parse_qs
-
-User = get_user_model()
+from tafahom_api.apps.v1.users.models import User
 
 
 @database_sync_to_async
 def get_user(validated_token):
-    """
-    Fetch user instance from validated SimpleJWT token.
-    """
     try:
         user_id = validated_token.get("user_id")
         return User.objects.get(id=user_id)
@@ -26,15 +21,19 @@ def get_user(validated_token):
 
 class JWTAuthMiddleware(BaseMiddleware):
     """
-    Production-grade JWT authentication middleware for WebSockets.
-    Uses SimpleJWT (same as REST APIs).
+    JWT authentication middleware for Django Channels (SimpleJWT).
     """
 
+    def __init__(self, inner):
+        super().__init__(inner)
+
     async def __call__(self, scope, receive, send):
+        scope["user"] = AnonymousUser()
+
         token = None
 
         # --------------------------------------------------
-        # 1. Try Authorization header
+        # 1. Authorization header
         # --------------------------------------------------
         headers = dict(scope.get("headers", []))
         auth_header = headers.get(b"authorization")
@@ -48,42 +47,23 @@ class JWTAuthMiddleware(BaseMiddleware):
                 token = None
 
         # --------------------------------------------------
-        # 2. Fallback to query string (?token=...)
+        # 2. Query string fallback (?token=...)
         # --------------------------------------------------
         if not token:
             query_string = scope.get("query_string", b"").decode()
-            query_params = parse_qs(query_string)
-            token = query_params.get("token", [None])[0]
+            token = parse_qs(query_string).get("token", [None])[0]
 
         # --------------------------------------------------
-        # 3. Reject unauthenticated connections
+        # 3. Validate token (if present)
         # --------------------------------------------------
-        if not token:
-            await send(
-                {
-                    "type": "websocket.close",
-                    "code": 4401,  # Unauthorized
-                }
-            )
-            return
-
-        # --------------------------------------------------
-        # 4. Validate token using SimpleJWT
-        # --------------------------------------------------
-        jwt_auth = JWTAuthentication()
-
-        try:
-            validated_token = jwt_auth.get_validated_token(token)
-            scope["user"] = await get_user(validated_token)
-            scope["auth"] = validated_token
-        except (InvalidToken, TokenError):
-            await send(
-                {
-                    "type": "websocket.close",
-                    "code": 4401,
-                }
-            )
-            return
+        if token:
+            jwt_auth = JWTAuthentication()
+            try:
+                validated_token = jwt_auth.get_validated_token(token)
+                scope["user"] = await get_user(validated_token)
+                scope["auth"] = validated_token
+            except (InvalidToken, TokenError):
+                pass  # keep AnonymousUser
 
         return await super().__call__(scope, receive, send)
 

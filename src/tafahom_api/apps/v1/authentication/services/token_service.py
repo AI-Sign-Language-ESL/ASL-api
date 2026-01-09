@@ -1,10 +1,8 @@
 import jwt
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import get_user_model
 from ..utils.jwt import generate_access_token
-
-User = get_user_model()
+from tafahom_api.apps.v1.users.models import User
 
 
 def refresh_access_token(refresh_token):

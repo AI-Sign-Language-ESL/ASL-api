@@ -5,9 +5,9 @@ import uuid
 
 from django.conf import settings
 
-from ai.clients.computer_vision_client import ComputerVisionClient
-from ai.clients.nlp_client import NLPClient
-from ai.clients.speech_client import SpeechClient
+from tafahom_api.apps.v1.ai.clients.computer_vision_client import ComputerVisionClient
+from tafahom_api.apps.v1.ai.clients.nlp_client import NLPClient
+from tafahom_api.apps.v1.ai.clients.speech_client import SpeechClient
 
 logger = logging.getLogger("translation")
 
@@ -74,17 +74,13 @@ class TranslationPipelineService:
         try:
             # ---------------- CV ----------------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(
-                cls._cv_client.sign_to_gloss(frames)
-            )
+            gloss = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("cv.sign_to_gloss", t, request_id)
 
             # ---------------- NLP ----------------
             t = time.perf_counter()
-            text = await cls._with_timeout(
-                cls._nlp_client.gloss_to_text(gloss)
-            )
+            text = await cls._with_timeout(cls._nlp_client.gloss_to_text(gloss))
             cls._validate_non_empty(text, "text")
             cls._log_stage("nlp.gloss_to_text", t, request_id)
 
@@ -127,25 +123,19 @@ class TranslationPipelineService:
         try:
             # ---------------- CV ----------------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(
-                cls._cv_client.sign_to_gloss(frames)
-            )
+            gloss = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("cv.sign_to_gloss", t, request_id)
 
             # ---------------- NLP ----------------
             t = time.perf_counter()
-            text = await cls._with_timeout(
-                cls._nlp_client.gloss_to_text(gloss)
-            )
+            text = await cls._with_timeout(cls._nlp_client.gloss_to_text(gloss))
             cls._validate_non_empty(text, "text")
             cls._log_stage("nlp.gloss_to_text", t, request_id)
 
             # ---------------- SPEECH ----------------
             t = time.perf_counter()
-            audio = await cls._with_timeout(
-                cls._speech_client.text_to_speech(text)
-            )
+            audio = await cls._with_timeout(cls._speech_client.text_to_speech(text))
             cls._validate_non_empty(audio, "audio")
             cls._log_stage("speech.text_to_speech", t, request_id)
 
@@ -193,9 +183,7 @@ class TranslationPipelineService:
 
             # ---------------- NLP ----------------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(
-                cls._nlp_client.text_to_gloss(text)
-            )
+            gloss = await cls._with_timeout(cls._nlp_client.text_to_gloss(text))
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("nlp.text_to_gloss", t, request_id)
 
@@ -240,17 +228,13 @@ class TranslationPipelineService:
 
             # ---------------- SPEECH ----------------
             t = time.perf_counter()
-            text = await cls._with_timeout(
-                cls._speech_client.speech_to_text(audio)
-            )
+            text = await cls._with_timeout(cls._speech_client.speech_to_text(audio))
             cls._validate_non_empty(text, "text")
             cls._log_stage("speech.speech_to_text", t, request_id)
 
             # ---------------- NLP ----------------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(
-                cls._nlp_client.text_to_gloss(text)
-            )
+            gloss = await cls._with_timeout(cls._nlp_client.text_to_gloss(text))
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("nlp.text_to_gloss", t, request_id)
 

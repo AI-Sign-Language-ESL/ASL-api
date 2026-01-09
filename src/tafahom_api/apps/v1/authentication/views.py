@@ -1,5 +1,5 @@
 import secrets
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import check_password
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from tafahom_api.apps.v1.users.models import User
 from .services.token_service import refresh_access_token
 from .services.google_auth import authenticate_with_google
 from . import models, serializers
@@ -21,7 +21,6 @@ from . import models, serializers
 # Ideally, move shared serializers to a 'common' place, or import from users
 from tafahom_api.apps.v1.users.serializers import UserResponseSerializer
 
-User = get_user_model()
 
 # =========================
 # 🔐 LOGIN (EMAIL/PASSWORD)

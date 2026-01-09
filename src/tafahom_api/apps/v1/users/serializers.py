@@ -1,9 +1,8 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from .models import Organization
 
-User = get_user_model()
+from tafahom_api.apps.v1.users.models import User
 
 # =========================
 # BASIC USER REGISTRATION

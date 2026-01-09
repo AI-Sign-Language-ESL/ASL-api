@@ -1,10 +1,9 @@
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from . import models
 
-User = get_user_model()
+from tafahom_api.apps.v1.users.models import User
 
 # =========================
 # 🔐 LOGIN & TOKENS

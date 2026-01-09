@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
-from api_client import PrefixedAPIClient
+from ..api_client import PrefixedAPIClient
 
 
 @pytest.fixture

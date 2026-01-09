@@ -6,7 +6,7 @@ from collections import deque
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from .services.streaming_translation_service import StreamingTranslationService
-from config import (
+from .config import (
     WS_MAX_MESSAGES_PER_SECOND,
     SEND_INTERVAL,
     MAX_BUFFER_SIZE,
@@ -60,10 +60,9 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
             await self.service.start()
         except Exception:
             logger.exception("StreamingTranslationService failed to start")
-            await self.send_json({
-                "type": "error",
-                "message": "Translation service unavailable"
-            })
+            await self.send_json(
+                {"type": "error", "message": "Translation service unavailable"}
+            )
             await self.close(code=1011)
 
     async def disconnect(self, close_code):
@@ -99,20 +98,16 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
                 await self.service.on_frame(bytes_data)
             except Exception:
                 logger.exception("Frame processing failed")
-                await self.send_json({
-                    "type": "error",
-                    "message": "Frame processing error"
-                })
+                await self.send_json(
+                    {"type": "error", "message": "Frame processing error"}
+                )
             return
 
         # Text frames (JSON control messages)
         try:
             data = json.loads(text_data)
         except Exception:
-            await self.send_json({
-                "type": "error",
-                "message": "Invalid JSON"
-            })
+            await self.send_json({"type": "error", "message": "Invalid JSON"})
             return
 
         msg_type = data.get("type")
@@ -130,14 +125,8 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
                 await self.service.stop_translation("client")
 
             else:
-                await self.send_json({
-                    "type": "error",
-                    "message": "Unknown action"
-                })
+                await self.send_json({"type": "error", "message": "Unknown action"})
 
         except Exception:
             logger.exception("Service action failed")
-            await self.send_json({
-                "type": "error",
-                "message": "Translation error"
-            })
+            await self.send_json({"type": "error", "message": "Translation error"})
