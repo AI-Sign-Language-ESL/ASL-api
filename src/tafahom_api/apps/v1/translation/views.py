@@ -53,27 +53,20 @@ def _get_or_create_wallet(user):
 
 
 class SignLanguageListView(generics.ListAPIView):
-    """
-    Lists available sign languages (e.g., ASL, ISL).
-    """
 
     permission_classes = [AllowAny]
     serializer_class = SignLanguageConfigSerializer
-    queryset = SignLanguageConfig.objects.filter(is_active=True)
+    queryset = SignLanguageConfig.objects.all().order_by("id")
 
 
 class TranslationRequestCreateView(generics.CreateAPIView):
-    """
-    Generic endpoint to create a translation request.
-    Handles credit consumption and wallet validation.
-    """
 
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
 
     def post(self, request, *args, **kwargs):
-        # 1. Get/Create Wallet
+
         subscription = _get_or_create_wallet(request.user)
         if not subscription:
             return Response(
