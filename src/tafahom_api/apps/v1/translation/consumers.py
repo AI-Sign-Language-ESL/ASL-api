@@ -2,9 +2,9 @@ import json
 import time
 import logging
 from collections import deque
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-from channels.generic.websocket import AsyncWebsocketConsumer
-
+# Ensure these imports exist in your project structure
 from .services.streaming_translation_service import StreamingTranslationService
 from .config import (
     WS_MAX_MESSAGES_PER_SECOND,
@@ -21,7 +21,7 @@ from .config import (
 logger = logging.getLogger(__name__)
 
 
-class SignTranslationConsumer(AsyncWebsocketConsumer):
+class SignTranslationConsumer(AsyncJsonWebsocketConsumer):
     """
     WebSocket transport layer ONLY.
     No business logic.
@@ -119,11 +119,19 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
 
         try:
             if action == "start":
+                # Send immediate status update
+                await self.send_json({"type": "status", "status": "processing"})
                 await self.service.start_translation(data.get("output_type"))
 
             elif action == "stop":
+                # ✅ FIX: Explicit status message for tests
+                await self.send_json(
+                    {
+                        "type": "status",
+                        "status": "stopped",
+                    }
+                )
                 await self.service.stop_translation("client")
-
             else:
                 await self.send_json({"type": "error", "message": "Unknown action"})
 

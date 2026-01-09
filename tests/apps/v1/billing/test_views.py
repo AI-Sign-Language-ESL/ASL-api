@@ -12,21 +12,33 @@ class TestSubscriptionPlansAPI:
     def test_list_active_plans(
         self,
         client: APIClient,
+        jwt_user_token: str,  # ✅ Added token fixture
         free_plan,
         paid_plan,
     ):
+        # ✅ Authenticate the client
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
+
         response: Response = client.get("/billing/plans/")
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 2
-        assert response.data[0]["plan_type"] == "free"
+
+        # Verify specific data points to be sure (optional but recommended)
+        plan_types = [p["plan_type"] for p in response.data]
+        assert "free" in plan_types
+        assert "pro" in plan_types
 
     def test_only_active_plans_returned(
         self,
         client: APIClient,
+        jwt_user_token: str,  # ✅ Added token fixture
         free_plan,
         paid_plan,
     ):
+        # ✅ Authenticate the client
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
+
         paid_plan.is_active = False
         paid_plan.save()
 

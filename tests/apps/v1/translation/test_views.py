@@ -12,7 +12,10 @@ class TestSignLanguagesAPI:
         response: Response = client.get("/translation/sign-languages/")
         assert response.status_code == status.HTTP_200_OK
 
-        codes = [lang["code"] for lang in response.data]
+        # Handle pagination wrapper (DRF returns 'results' list inside a dict)
+        data = response.data["results"] if "results" in response.data else response.data
+
+        codes = [lang["code"] for lang in data]
         assert "ase" in codes
 
 
@@ -23,9 +26,12 @@ class TestCreateTranslationRequestAPI:
         client: APIClient,
         jwt_user_token: str,
         asl_language,
+        free_plan,
+        valid_video_file,  # ✅ INJECTED: File fixture from conftest.py
     ):
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_user_token}")
 
+        # ✅ CHANGED: Use 'multipart' format and pass the actual file
         response: Response = client.post(
             "/translation/requests/",
             {
@@ -33,14 +39,16 @@ class TestCreateTranslationRequestAPI:
                 "input_type": "video",
                 "output_type": "text",
                 "source_language": asl_language.code,
+                "input_video": valid_video_file,  # ✅ Pass the file object
             },
-            format="json",
+            format="multipart",  # ✅ MUST be multipart for file uploads
         )
 
         assert response.status_code == status.HTTP_201_CREATED
         assert TranslationRequest.objects.count() == 1
 
     def test_requires_auth(self, client: APIClient, asl_language):
+        # This test can stay JSON as it fails before payload validation
         response = client.post(
             "/translation/requests/",
             {
@@ -67,4 +75,9 @@ class TestMyTranslationRequestsAPI:
         response: Response = client.get("/translation/requests/me/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 1
+
+        # Handle pagination wrapper
+        data = response.data["results"] if "results" in response.data else response.data
+
+        assert len(data) == 1
+        assert data[0]["id"] == translation_request.id

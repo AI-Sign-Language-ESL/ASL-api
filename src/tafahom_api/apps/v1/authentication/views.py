@@ -10,7 +10,7 @@ from django.core.mail import send_mail
 from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from tafahom_api.apps.v1.users.models import User
 from .services.token_service import refresh_access_token
@@ -29,6 +29,7 @@ from tafahom_api.apps.v1.users.serializers import UserResponseSerializer
 
 class LoginView(generics.GenericAPIView):
     serializer_class = serializers.LoginSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -74,6 +75,7 @@ class LoginView(generics.GenericAPIView):
 
 class Login2FAView(generics.GenericAPIView):
     serializer_class = serializers.Login2FASerializer
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -149,18 +151,7 @@ class GoogleLoginView(APIView):
 
 
 class RefreshTokenView(APIView):
-    authentication_classes = []
-
-    def post(self, request):
-        serializer = serializers.RefreshTokenSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        access_token = refresh_access_token(serializer.validated_data["refresh_token"])
-
-        return Response(
-            {"access_token": access_token},
-            status=status.HTTP_200_OK,
-        )
+    pass
 
 
 # =========================

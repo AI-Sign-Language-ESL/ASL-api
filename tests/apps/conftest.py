@@ -1,5 +1,5 @@
 import pytest
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken
 from tafahom_api.apps.v1.users.models import User
 
 
@@ -13,7 +13,7 @@ def django_db_setup(django_db_setup, django_db_blocker):
 
 
 @pytest.fixture
-def user(db) -> User:
+def existing_user(db) -> User:
     """
     Base test user
     """
@@ -23,21 +23,18 @@ def user(db) -> User:
 
 
 @pytest.fixture
-def auth_tokens(user):
-    """
-    JWT tokens for authenticated requests
-    """
-    refresh = RefreshToken.for_user(user)
-    return {
-        "access": str(refresh.access_token),
-        "refresh": str(refresh),
-    }
+def jwt_user_token(existing_user) -> str:
+    token = AccessToken.for_user(existing_user)
+    return str(token)
 
 
 @pytest.fixture
-def auth_client(api_client, auth_tokens):
-    """
-    Authenticated API client
-    """
-    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {auth_tokens['access']}")
-    return api_client
+def jwt_admin_token(admin_user) -> str:
+    token = AccessToken.for_user(admin_user)
+    return str(token)
+
+
+@pytest.fixture
+def jwt_supervisor_token(supervisor_user) -> str:
+    token = AccessToken.for_user(supervisor_user)
+    return str(token)

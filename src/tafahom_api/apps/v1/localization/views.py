@@ -39,7 +39,7 @@ class SetLanguageView(generics.GenericAPIView):
         translation.activate(language_code)
 
         if hasattr(request, "session"):
-            request.session[translation.LANGUAGE_SESSION_KEY] = language_code
+            request.session["django_language"] = language_code  # ✅ FIX
 
         response_data = {
             "language_code": language_code,
@@ -90,26 +90,49 @@ class CurrentLanguageView(generics.GenericAPIView):
 
 class BulkTranslationKeyView(generics.GenericAPIView):
     permission_classes = [AllowAny]
-    serializer_class = serializers.BulkTranslationKeySerializer
 
     def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        keys = request.data.get("keys")
+        language = request.data.get("language", "en")
 
-        translations = TranslationKeyService.get_bulk_translations(
-            keys=serializer.validated_data["keys"],
-            language=serializer.validated_data["language"],
-        )
+        # -------------------------------------------------
+        # ✅ VALIDATION (required by tests)
+        # -------------------------------------------------
 
-        response_data = {
-            "translations": translations,
-            "language": serializer.validated_data["language"],
+        if not isinstance(keys, list) or len(keys) == 0:
+            return Response(
+                {"detail": "Keys list cannot be empty."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(keys) > 100:
+            return Response(
+                {"detail": "Too many keys requested."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # -------------------------------------------------
+        # ✅ FETCH TRANSLATIONS
+        # -------------------------------------------------
+
+        translations = {}
+        found_keys = {
+            obj.key: obj for obj in TranslationKey.objects.filter(key__in=keys)
         }
 
-        response_serializer = serializers.TranslationResponseSerializer(
-            instance=response_data
+        for key in keys:
+            obj = found_keys.get(key)
+
+            if not obj:
+                # ✅ REQUIRED: missing key → return key itself
+                translations[key] = key
+            else:
+                translations[key] = obj.text_ar if language == "ar" else obj.text_en
+
+        return Response(
+            {"translations": translations},
+            status=status.HTTP_200_OK,
         )
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 # ---------------- ADMIN KEYS ----------------

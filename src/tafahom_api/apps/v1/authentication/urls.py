@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from rest_framework_simplejwt.views import TokenRefreshView
 
 app_name = "authentication"
 
@@ -8,7 +9,7 @@ urlpatterns = [
     path("login/", views.LoginView.as_view(), name="login"),
     path("login/2fa/", views.Login2FAView.as_view(), name="login-2fa"),
     path("login/google/", views.GoogleLoginView.as_view(), name="login-google"),
-    path("token/refresh/", views.RefreshTokenView.as_view(), name="token-refresh"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     # Two-Factor Authentication (Setup & Management)
     path("2fa/setup/", views.TwoFactorSetupView.as_view(), name="2fa-setup"),
     path("2fa/enable/", views.TwoFactorEnableView.as_view(), name="2fa-enable"),

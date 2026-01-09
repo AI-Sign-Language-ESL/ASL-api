@@ -74,8 +74,14 @@ class TestMyDatasetContributionsAPI:
         response: Response = client.get("/dataset/contributions/me/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 1
-        assert response.data[0]["word"] == "hello"
+
+        # FIX: Handle pagination wrapper
+        results = (
+            response.data["results"] if "results" in response.data else response.data
+        )
+
+        assert len(results) == 1
+        assert results[0]["word"] == "hello"
 
 
 @pytest.mark.django_db
@@ -92,7 +98,14 @@ class TestPendingDatasetContributionsAPI:
         response: Response = client.get("/dataset/admin/contributions/pending/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 1
+
+        # FIX: Handle pagination wrapper
+        results = (
+            response.data["results"] if "results" in response.data else response.data
+        )
+
+        assert len(results) == 1
+        assert results[0]["id"] == dataset_contribution.id
 
     def test_non_admin_forbidden(
         self,

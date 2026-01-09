@@ -125,11 +125,11 @@ class TestRefreshTokenAPI:
 
         response: Response = client.post(
             "/authentication/token/refresh/",
-            {"refresh_token": str(refresh)},
+            {"refresh": str(refresh)},  # ✅ FIX HERE
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert "access_token" in response.data
+        assert "access" in response.data
 
 
 # ======================================================

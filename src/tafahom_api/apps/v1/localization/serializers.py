@@ -46,6 +46,7 @@ class TranslationResponseSerializer(serializers.Serializer):
 class BulkTranslationKeySerializer(serializers.Serializer):
     keys = serializers.ListField(
         child=serializers.CharField(max_length=200),
+        allow_empty=False,  # ✅ REQUIRED BY TESTS
         help_text=_("List of translation keys."),
     )
     language = serializers.ChoiceField(
@@ -89,6 +90,9 @@ class TranslationKeySerializer(serializers.ModelSerializer):
 
 
 class TranslationKeyListSerializer(serializers.ModelSerializer):
+    # ✅ MUST expose "key" field (tests expect it)
+    key = serializers.CharField()
+
     preview_en = serializers.SerializerMethodField()
     preview_ar = serializers.SerializerMethodField()
 
@@ -96,7 +100,7 @@ class TranslationKeyListSerializer(serializers.ModelSerializer):
         model = TranslationKey
         fields = [
             "id",
-            "key",
+            "key",  # ✅ REQUIRED
             "context",
             "preview_en",
             "preview_ar",
