@@ -40,7 +40,6 @@ COPY . .
 # ==========================
 # Collect static files
 # ==========================
-RUN python src/manage.py collectstatic --noinput
 
 # ==========================
 # Expose port
