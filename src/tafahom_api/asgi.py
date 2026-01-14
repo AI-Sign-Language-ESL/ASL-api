@@ -1,24 +1,19 @@
 import os
-import django
 from django.core.asgi import get_asgi_application
-from channels.routing import ProtocolTypeRouter, URLRouter
-from tafahom_api.apps.v1.translation.routing import websocket_urlpatterns
-from tafahom_api.apps.v1.authentication.middleware import JWTAuthMiddlewareStack
 
-# -----------------------------------------------------------------------------
-# Settings
-# -----------------------------------------------------------------------------
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tafahom_api.settings.base")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tafahom_api.settings")
 
-# IMPORTANT: initialize Django explicitly
-django.setup()
+# Initialize Django (must happen before importing project code)
+django_asgi_app = get_asgi_application()
 
+# Import project code (Linter will complain, so we silence it)
+from tafahom_api.apps.v1.translation.routing import websocket_urlpatterns  # noqa: E402
+from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from channels.auth import AuthMiddlewareStack  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
-        # HTTP requests
-        "http": get_asgi_application(),
-        # WebSocket connections
-        "websocket": JWTAuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+        "http": django_asgi_app,
+        "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
     }
 )
