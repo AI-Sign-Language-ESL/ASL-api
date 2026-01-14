@@ -9,7 +9,6 @@ from typing import List
 from django.utils import timezone
 from channels.db import database_sync_to_async
 
-from ..models import TranslationRequest
 from .pipeline_service import TranslationPipelineService
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 class StreamingTranslationService:
     """
     Streaming logic, buffering, AI calls, billing, DB lifecycle.
-    Async-safe, production-ready, unit-test friendly.
+    ASGI-safe, Daphne-safe, production-ready.
     """
 
     def __init__(self, *, user, send_json, close_ws, config):
@@ -107,11 +106,13 @@ class StreamingTranslationService:
         async with self.buffer_lock:
             self.frame_buffer.clear()
 
-        await self.send_json({
-            "type": "status",
-            "status": "processing",
-            "translation_id": self.translation.id,
-        })
+        await self.send_json(
+            {
+                "type": "status",
+                "status": "processing",
+                "translation_id": self.translation.id,
+            }
+        )
 
     async def stop_translation(self, reason="unknown"):
         if not self.running:
@@ -131,7 +132,10 @@ class StreamingTranslationService:
             while not self.closed:
                 await asyncio.sleep(0.1)
 
-                if time.time() - self.connection_started_at > self.config["WS_MAX_CONNECTION_TIME"]:
+                if (
+                    time.time() - self.connection_started_at
+                    > self.config["WS_MAX_CONNECTION_TIME"]
+                ):
                     await self.close_ws(code=4009)
                     return
 
@@ -148,11 +152,13 @@ class StreamingTranslationService:
                 async with self.buffer_lock:
                     if not self.frame_buffer:
                         continue
-                    frames = list(self.frame_buffer)[-self.config["MAX_BATCH_FRAMES"]:]
+                    frames = list(self.frame_buffer)[-self.config["MAX_BATCH_FRAMES"] :]
                     self.frame_buffer.clear()
 
                 if len(frames) > self.config["MAX_FRAMES_PER_REQUEST"]:
-                    await self.send_json({"type": "error", "message": "Too many frames"})
+                    await self.send_json(
+                        {"type": "error", "message": "Too many frames"}
+                    )
                     continue
 
                 await self._process_batch(frames)
@@ -162,10 +168,9 @@ class StreamingTranslationService:
             pass
         except Exception:
             logger.exception("AI loop crashed")
-            await self.send_json({
-                "type": "error",
-                "message": "Streaming service crashed"
-            })
+            await self.send_json(
+                {"type": "error", "message": "Streaming service crashed"}
+            )
             await self.close_ws(code=1011)
 
     async def _process_batch(self, frames: List[bytes]):
@@ -185,24 +190,24 @@ class StreamingTranslationService:
                 )
                 if result:
                     self.partial_text_buffer.append(result["text"])
-                    await self.send_json({
-                        "type": "partial_result",
-                        "text": result["text"],
-                        "audio": result["audio"],
-                    })
+                    await self.send_json(
+                        {
+                            "type": "partial_result",
+                            "text": result["text"],
+                            "audio": result["audio"],
+                        }
+                    )
 
         except asyncio.TimeoutError:
-            await self.send_json({
-                "type": "warning",
-                "message": "Poor connection, retrying..."
-            })
+            await self.send_json(
+                {"type": "warning", "message": "Poor connection, retrying..."}
+            )
 
         except Exception:
             logger.exception("pipeline_failure")
-            await self.send_json({
-                "type": "error",
-                "message": "AI service temporary error"
-            })
+            await self.send_json(
+                {"type": "error", "message": "AI service temporary error"}
+            )
 
     async def _finalize_translation(self):
         if not self.translation:
@@ -215,7 +220,7 @@ class StreamingTranslationService:
         )
 
     # -----------------------------------------------------
-    # ASYNC DB / BILLING HELPERS (CRITICAL)
+    # ASYNC DB / BILLING HELPERS (ASGI SAFE)
     # -----------------------------------------------------
 
     @database_sync_to_async
@@ -224,6 +229,9 @@ class StreamingTranslationService:
 
     @database_sync_to_async
     def _create_translation(self, output_type):
+        # ✅ LAZY IMPORT — FIXES AppRegistryNotReady
+        from ..models import TranslationRequest
+
         return TranslationRequest.objects.create(
             user=self.user,
             direction="from_sign",
