@@ -6,8 +6,11 @@ import uuid
 from django.conf import settings
 
 from tafahom_api.apps.v1.ai.clients.computer_vision_client import ComputerVisionClient
-from tafahom_api.apps.v1.ai.clients.nlp_client import NLPClient
-from tafahom_api.apps.v1.ai.clients.speech_client import SpeechClient
+from tafahom_api.apps.v1.ai.clients.gloss_to_text_client import GlossToTextClient
+from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
+from tafahom_api.apps.v1.ai.clients.text_to_speech_client import TextToSpeechClient
+from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
+from tafahom_api.apps.v1.ai.utils.ensure_wav import ensure_wav
 
 logger = logging.getLogger("translation")
 
@@ -17,31 +20,30 @@ class TranslationPipelineService:
     Production-grade AI orchestration layer.
 
     Guarantees:
-    - Global timeout alignment with settings
-    - Stage-level timing
+    - Centralized timeout handling
+    - Stage-level timing & logging
     - Strong validation
-    - Clean error contracts
-    - No transport concerns (WS / HTTP agnostic)
+    - Clean error boundaries
+    - Transport-agnostic (HTTP / WS / Unity safe)
     """
 
     # --------------------------------------------------
-    # Shared clients (singleton-style, reused connections)
+    # Shared clients (singletons)
     # --------------------------------------------------
     _cv_client = ComputerVisionClient()
-    _nlp_client = NLPClient()
-    _speech_client = SpeechClient()
+    _gloss_to_text_client = GlossToTextClient()
+    _text_to_gloss_client = TextToGlossClient()
+    _tts_client = TextToSpeechClient()
+    _stt_client = SpeechToTextClient()
 
     # --------------------------------------------------
     # Internal helpers
     # --------------------------------------------------
     @staticmethod
     async def _with_timeout(coro):
-        """
-        Single source of truth for timeouts.
-        """
         return await asyncio.wait_for(
             coro,
-            timeout=settings.PIPELINE_TIMEOUT_SECONDS,
+            timeout=settings.AI_TIMEOUT,
         )
 
     @staticmethod
@@ -64,23 +66,28 @@ class TranslationPipelineService:
         )
 
     # --------------------------------------------------
-    # Public pipeline methods
+    # PIPELINES
     # --------------------------------------------------
+
     @classmethod
-    async def sign_to_text(cls, frames):
+    async def sign_to_text(cls, frames: list[str]):
         request_id = str(uuid.uuid4())
         pipeline_start = time.perf_counter()
 
         try:
-            # ---------------- CV ----------------
+            # -------- CV --------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+            cv_resp = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+            gloss = cv_resp.get("gloss") if isinstance(cv_resp, dict) else cv_resp
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("cv.sign_to_gloss", t, request_id)
 
-            # ---------------- NLP ----------------
+            # -------- NLP --------
             t = time.perf_counter()
-            text = await cls._with_timeout(cls._nlp_client.gloss_to_text(gloss))
+            nlp_resp = await cls._with_timeout(
+                cls._gloss_to_text_client.gloss_to_text(gloss)
+            )
+            text = nlp_resp.get("text") if isinstance(nlp_resp, dict) else nlp_resp
             cls._validate_non_empty(text, "text")
             cls._log_stage("nlp.gloss_to_text", t, request_id)
 
@@ -93,49 +100,49 @@ class TranslationPipelineService:
                 },
             )
 
-            return text
+            return {"text": text}
 
         except asyncio.TimeoutError:
             logger.warning(
                 "pipeline_timeout",
-                extra={
-                    "pipeline": "sign_to_text",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "sign_to_text", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline timeout")
 
         except Exception as exc:
             logger.exception(
                 "pipeline_failed",
-                extra={
-                    "pipeline": "sign_to_text",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "sign_to_text", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline failed") from exc
 
+    # --------------------------------------------------
+
     @classmethod
-    async def sign_to_voice(cls, frames):
+    async def sign_to_voice(cls, frames: list[str]):
         request_id = str(uuid.uuid4())
         pipeline_start = time.perf_counter()
 
         try:
-            # ---------------- CV ----------------
+            # -------- CV --------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+            cv_resp = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+            gloss = cv_resp.get("gloss") if isinstance(cv_resp, dict) else cv_resp
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("cv.sign_to_gloss", t, request_id)
 
-            # ---------------- NLP ----------------
+            # -------- NLP --------
             t = time.perf_counter()
-            text = await cls._with_timeout(cls._nlp_client.gloss_to_text(gloss))
+            nlp_resp = await cls._with_timeout(
+                cls._gloss_to_text_client.gloss_to_text(gloss)
+            )
+            text = nlp_resp.get("text") if isinstance(nlp_resp, dict) else nlp_resp
             cls._validate_non_empty(text, "text")
             cls._log_stage("nlp.gloss_to_text", t, request_id)
 
-            # ---------------- SPEECH ----------------
+            # -------- TTS --------
             t = time.perf_counter()
-            audio = await cls._with_timeout(cls._speech_client.text_to_speech(text))
+            audio = await cls._with_timeout(cls._tts_client.text_to_speech(text))
             cls._validate_non_empty(audio, "audio")
             cls._log_stage("speech.text_to_speech", t, request_id)
 
@@ -156,34 +163,33 @@ class TranslationPipelineService:
         except asyncio.TimeoutError:
             logger.warning(
                 "pipeline_timeout",
-                extra={
-                    "pipeline": "sign_to_voice",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "sign_to_voice", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline timeout")
 
         except Exception as exc:
             logger.exception(
                 "pipeline_failed",
-                extra={
-                    "pipeline": "sign_to_voice",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "sign_to_voice", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline failed") from exc
 
+    # --------------------------------------------------
+
     @classmethod
-    async def text_to_sign(cls, text):
+    async def text_to_sign(cls, text: str):
         request_id = str(uuid.uuid4())
         pipeline_start = time.perf_counter()
 
         try:
             cls._validate_non_empty(text, "text")
 
-            # ---------------- NLP ----------------
+            # -------- NLP --------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(cls._nlp_client.text_to_gloss(text))
+            nlp_resp = await cls._with_timeout(
+                cls._text_to_gloss_client.text_to_gloss(text)
+            )
+            gloss = nlp_resp.get("gloss") if isinstance(nlp_resp, dict) else nlp_resp
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("nlp.text_to_gloss", t, request_id)
 
@@ -196,45 +202,47 @@ class TranslationPipelineService:
                 },
             )
 
-            return gloss
+            return {"gloss": gloss}
 
         except asyncio.TimeoutError:
             logger.warning(
                 "pipeline_timeout",
-                extra={
-                    "pipeline": "text_to_sign",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "text_to_sign", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline timeout")
 
         except Exception as exc:
             logger.exception(
                 "pipeline_failed",
-                extra={
-                    "pipeline": "text_to_sign",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "text_to_sign", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline failed") from exc
 
+    # --------------------------------------------------
+
     @classmethod
-    async def voice_to_sign(cls, audio):
+    async def voice_to_sign(cls, uploaded_file):
         request_id = str(uuid.uuid4())
         pipeline_start = time.perf_counter()
 
         try:
-            cls._validate_non_empty(audio, "audio")
+            # -------- STT --------
+            audio_file = ensure_wav(uploaded_file)
 
-            # ---------------- SPEECH ----------------
             t = time.perf_counter()
-            text = await cls._with_timeout(cls._speech_client.speech_to_text(audio))
+            stt_resp = await cls._with_timeout(
+                cls._stt_client.speech_to_text(audio_file)
+            )
+            text = stt_resp.get("text") if isinstance(stt_resp, dict) else stt_resp
             cls._validate_non_empty(text, "text")
             cls._log_stage("speech.speech_to_text", t, request_id)
 
-            # ---------------- NLP ----------------
+            # -------- NLP --------
             t = time.perf_counter()
-            gloss = await cls._with_timeout(cls._nlp_client.text_to_gloss(text))
+            nlp_resp = await cls._with_timeout(
+                cls._text_to_gloss_client.text_to_gloss(text)
+            )
+            gloss = nlp_resp.get("gloss") if isinstance(nlp_resp, dict) else nlp_resp
             cls._validate_non_empty(gloss, "gloss")
             cls._log_stage("nlp.text_to_gloss", t, request_id)
 
@@ -247,24 +255,21 @@ class TranslationPipelineService:
                 },
             )
 
-            return gloss
+            return {
+                "text": text,
+                "gloss": gloss,
+            }
 
         except asyncio.TimeoutError:
             logger.warning(
                 "pipeline_timeout",
-                extra={
-                    "pipeline": "voice_to_sign",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "voice_to_sign", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline timeout")
 
         except Exception as exc:
             logger.exception(
                 "pipeline_failed",
-                extra={
-                    "pipeline": "voice_to_sign",
-                    "request_id": request_id,
-                },
+                extra={"pipeline": "voice_to_sign", "request_id": request_id},
             )
             raise RuntimeError("AI pipeline failed") from exc

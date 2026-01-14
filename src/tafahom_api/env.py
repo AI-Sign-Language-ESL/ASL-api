@@ -46,12 +46,6 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
-# ==================================================
-# AI (MODAL) CONFIG
-# ==================================================
-AI_BASE_URL = os.getenv("AI_BASE_URL")
-AI_API_KEY = os.getenv("AI_API_KEY")
-AI_TIMEOUT = int(os.getenv("AI_TIMEOUT", 30))
 
 # ==================================================
 # SECURITY

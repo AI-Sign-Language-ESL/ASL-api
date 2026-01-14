@@ -15,9 +15,6 @@ from .env import (
     POSTGRES_PORT,
     REDIS_HOST,
     REDIS_PORT,
-    AI_BASE_URL,
-    AI_API_KEY,
-    AI_TIMEOUT,
     CSRF_TRUSTED_ORIGINS,
     CORS_ALLOWED_ORIGINS,
     SENTRY_DSN,
@@ -190,10 +187,16 @@ CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS
 # =============================================================================
 # AI CONFIG
 # =============================================================================
-AI_BASE_URL = AI_BASE_URL
-AI_API_KEY = AI_API_KEY
-AI_TIMEOUT = AI_TIMEOUT
-PIPELINE_TIMEOUT_SECONDS = AI_TIMEOUT
+
+AI_TIMEOUT = 30
+
+AI_STT_BASE_URL = (
+    "https://yousef-ehab4704--egyptian-asr-api-modelserver-predict.modal.run"
+)
+AI_TTS_BASE_URL = "https://yousef-ehab4704--egtts-v0-1-service-tts-endpoint.modal.run"
+AI_GLOSS_TO_TEXT_BASE_URL = "https://moh-haitham202--arabic-gloss-app-ui.modal.run"
+AI_TEXT_TO_GLOSS_BASE_URL = "https://moh-haitham2--FIX_ME.modal.run"
+AI_CV_BASE_URL = "https://zein-waleed--FIX_ME.modal.run"
 
 # =============================================================================
 # LOGGING
