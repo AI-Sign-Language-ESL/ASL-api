@@ -20,13 +20,19 @@ from .env import (
     SENTRY_DSN,
     WS_MAX_MESSAGES_PER_SECOND,
     WS_MAX_CONNECTION_TIME,
+    AI_TIMEOUT,
+    AI_STT_BASE_URL,
+    AI_TTS_BASE_URL,
+    AI_GLOSS_TO_TEXT_BASE_URL,
+    AI_TEXT_TO_GLOSS_BASE_URL,
+    AI_CV_BASE_URL,
 )
 
 # =============================================================================
 # CORE
 # =============================================================================
 SECRET_KEY = SECRET_KEY
-DEBUG = ENVIRONMENT != "PROD"
+DEBUG = DEBUG
 ALLOWED_HOSTS = ALLOWED_HOSTS
 
 ROOT_URLCONF = "tafahom_api.urls"
@@ -34,7 +40,7 @@ ASGI_APPLICATION = "tafahom_api.asgi.application"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # =============================================================================
-# SECURITY (PROD SAFE)
+# SECURITY
 # =============================================================================
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = ENVIRONMENT == "PROD"
@@ -43,7 +49,6 @@ CSRF_COOKIE_SECURE = ENVIRONMENT == "PROD"
 SECURE_HSTS_SECONDS = 3600 if ENVIRONMENT == "PROD" else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = ENVIRONMENT == "PROD"
 SECURE_HSTS_PRELOAD = ENVIRONMENT == "PROD"
-
 SECURE_SSL_REDIRECT = ENVIRONMENT == "PROD"
 
 # =============================================================================
@@ -181,22 +186,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
-
 CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS
 
 # =============================================================================
-# AI CONFIG
+# AI CONFIG (FROM ENV)
 # =============================================================================
-
-AI_TIMEOUT = 30
-
-AI_STT_BASE_URL = (
-    "https://yousef-ehab4704--egyptian-asr-api-modelserver-predict.modal.run"
-)
-AI_TTS_BASE_URL = "https://yousef-ehab4704--egtts-v0-1-service-tts-endpoint.modal.run"
-AI_GLOSS_TO_TEXT_BASE_URL = "https://moh-haitham202--arabic-gloss-app-ui.modal.run"
-AI_TEXT_TO_GLOSS_BASE_URL = "https://moh-haitham2--FIX_ME.modal.run"
-AI_CV_BASE_URL = "https://zein-waleed--FIX_ME.modal.run"
+AI_TIMEOUT = AI_TIMEOUT
+AI_STT_BASE_URL = AI_STT_BASE_URL
+AI_TTS_BASE_URL = AI_TTS_BASE_URL
+AI_GLOSS_TO_TEXT_BASE_URL = AI_GLOSS_TO_TEXT_BASE_URL
+AI_TEXT_TO_GLOSS_BASE_URL = AI_TEXT_TO_GLOSS_BASE_URL
+AI_CV_BASE_URL = AI_CV_BASE_URL
 
 # =============================================================================
 # LOGGING
@@ -213,26 +213,9 @@ LOGGING = {
             "formatter": "default",
         },
     },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "channels": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "translation": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-    },
     "root": {
         "handlers": ["console"],
-        "level": "WARNING",
+        "level": "INFO" if ENVIRONMENT == "DEV" else "WARNING",
     },
 }
 

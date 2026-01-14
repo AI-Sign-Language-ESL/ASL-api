@@ -28,9 +28,9 @@ load_dotenv(BASE_DIR / env_file)
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if ENVIRONMENT == "PROD" and not SECRET_KEY:
-    raise RuntimeError("SECRET_KEY is required")
+    raise RuntimeError("SECRET_KEY is required in PROD")
 
-# ✅ Allow pytest / DEV to run safely
+# Allow pytest / DEV
 if ENVIRONMENT != "PROD" and not SECRET_KEY:
     SECRET_KEY = "test-secret-key"
 
@@ -69,28 +69,33 @@ REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
 # =============================================================================
-# AI SERVICES
+# AI SERVICES (ENV-DRIVEN, NO HARDCODE)
 # =============================================================================
-AI_BASE_URL = os.getenv("AI_BASE_URL")
-AI_API_KEY = os.getenv("AI_API_KEY")
 AI_TIMEOUT = int(os.getenv("AI_TIMEOUT", 30))
 
-if ENVIRONMENT == "PROD" and not AI_BASE_URL:
-    raise RuntimeError("AI_BASE_URL is required in PROD")
+AI_STT_BASE_URL = os.getenv("AI_STT_BASE_URL")
+AI_TTS_BASE_URL = os.getenv("AI_TTS_BASE_URL")
+AI_GLOSS_TO_TEXT_BASE_URL = os.getenv("AI_GLOSS_TO_TEXT_BASE_URL")
+AI_TEXT_TO_GLOSS_BASE_URL = os.getenv("AI_TEXT_TO_GLOSS_BASE_URL")
+AI_CV_BASE_URL = os.getenv("AI_CV_BASE_URL")
 
-if ENVIRONMENT == "PROD" and not AI_API_KEY:
-    raise RuntimeError("AI_API_KEY is required in PROD")
+if ENVIRONMENT == "PROD":
+    for name, value in {
+        "AI_STT_BASE_URL": AI_STT_BASE_URL,
+        "AI_TTS_BASE_URL": AI_TTS_BASE_URL,
+        "AI_GLOSS_TO_TEXT_BASE_URL": AI_GLOSS_TO_TEXT_BASE_URL,
+        "AI_TEXT_TO_GLOSS_BASE_URL": AI_TEXT_TO_GLOSS_BASE_URL,
+        "AI_CV_BASE_URL": AI_CV_BASE_URL,
+    }.items():
+        if not value:
+            raise RuntimeError(f"{name} is required in PROD")
 
 # =============================================================================
-# WEBSOCKET / STREAMING LIMITS
+# WEBSOCKET LIMITS
 # =============================================================================
-WS_MAX_MESSAGES_PER_SECOND = int(
-    os.getenv("WS_MAX_MESSAGES_PER_SECOND", 30)
-)
+WS_MAX_MESSAGES_PER_SECOND = int(os.getenv("WS_MAX_MESSAGES_PER_SECOND", 30))
 
-WS_MAX_CONNECTION_TIME = int(
-    os.getenv("WS_MAX_CONNECTION_TIME", 60 * 15)  # 15 minutes
-)
+WS_MAX_CONNECTION_TIME = int(os.getenv("WS_MAX_CONNECTION_TIME", 60 * 15))
 
 # =============================================================================
 # CORS / CSRF
