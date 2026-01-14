@@ -5,69 +5,43 @@ services:
   # Backend (Django + Channels)
   # =========================
   backend:
+    container_name: tafahom-backend
     build:
       context: ./backend
-    container_name: tafahom-backend
-    command: >
-      daphne tafahom.asgi:application
-      -b 0.0.0.0
-      -p 8000
+    command: daphne tafahom_api.asgi:application -b 0.0.0.0 -p 8000
+    env_file:
+      - .env.prod
+    environment:
+      ENVIRONMENT: PROD
     ports:
       - "8000:8000"
-    environment:
-      DJANGO_SETTINGS_MODULE: tafahom.settings
-      DJANGO_ENV: production
-
-      # 🔗 Database
-      DB_NAME: tafahom
-      DB_USER: tafahom
-      DB_PASSWORD: tafahom
-      DB_HOST: postgres
-      DB_PORT: 5432
-
-      # 🔗 AI service
-
+    volumes:
+      - static_volume:/app/staticfiles
     depends_on:
       - postgres
-      - ai
-
+      - redis
     restart: unless-stopped
 
-
   # =========================
-  # PostgreSQL Database
+  # PostgreSQL
   # =========================
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: tafahom-postgres
-    environment:
-      POSTGRES_DB: tafahom
-      POSTGRES_USER: tafahom
-      POSTGRES_PASSWORD: tafahom
+    env_file:
+      - .env.prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"   # optional (for pgAdmin / local access)
     restart: unless-stopped
 
-
   # =========================
-  # AI Service (gRPC + GPU)
+  # Redis (Channels)
   # =========================
-  ai:
-    build:
-      context: ./ai_service
-    container_name: tafahom-ai
-    ports:
-      - "50051:50051"
+  redis:
+    image: redis:7-alpine
+    container_name: tafahom-redis
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-
 
 volumes:
   postgres_data:
+  static_volume:
