@@ -7,7 +7,7 @@ services:
   backend:
     container_name: tafahom-backend
     build:
-      context: ./backend
+      context: .
     command: daphne tafahom_api.asgi:application -b 0.0.0.0 -p 8000
     env_file:
       - .env.prod
