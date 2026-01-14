@@ -28,7 +28,6 @@ services:
     command: >
       sh -c "
       python src/manage.py migrate &&
-      python src/manage.py collectstatic --noinput &&
       daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application
       "
     # Port 8000 removed. Only Nginx needs to talk to this.
