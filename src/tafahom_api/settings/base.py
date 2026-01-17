@@ -178,7 +178,8 @@ WS_MAX_CONNECTION_TIME = WS_MAX_CONNECTION_TIME
 # STATIC FILES
 # =============================================================================
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = "/app/staticfiles"
+
 
 # =============================================================================
 # CORS / CSRF

@@ -1,6 +1,6 @@
 services:
   # =========================
-  # Nginx (The Entry Point)
+  # Nginx (Entry Point)
   # =========================
   nginx:
     image: nginx:alpine
@@ -9,13 +9,13 @@ services:
       - "80:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - static_volume:/app/staticfiles  # Reads the files backend collected
+      - static_volume:/app/staticfiles
     depends_on:
       - backend
     restart: unless-stopped
 
   # =========================
-  # Backend (Django + Channels)
+  # Backend (Django + Daphne)
   # =========================
   backend:
     container_name: tafahom-backend
@@ -28,11 +28,10 @@ services:
       ENVIRONMENT: PROD
     command: >
       sh -c "
-      cd src &&
       python manage.py migrate &&
+      python manage.py collectstatic --noinput &&
       daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application
       "
-    # Port 8000 removed. Only Nginx needs to talk to this.
     volumes:
       - static_volume:/app/staticfiles
     depends_on:
@@ -58,8 +57,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-
-
 
   # =========================
   # Redis (Channels)
