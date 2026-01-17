@@ -28,8 +28,8 @@ services:
       ENVIRONMENT: PROD
     command: >
       sh -c "
-      python manage.py migrate &&
-      python manage.py collectstatic --noinput &&
+      python src/manage.py migrate &&
+      python src/manage.py collectstatic --noinput &&
       daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application
       "
     volumes:
