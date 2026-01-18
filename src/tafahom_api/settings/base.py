@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "corsheaders",
     "channels",
+    "tafahom_api.apps.v1.billing",
     *v1.APPS,
 ]
 
