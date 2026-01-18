@@ -16,6 +16,17 @@ services:
       - backend
     restart: unless-stopped
 
+  pgadmin:
+  image: dpage/pgadmin4
+  container_name: tafahom-pgadmin
+  environment:
+    PGADMIN_DEFAULT_EMAIL: admin@tafahom.com
+    PGADMIN_DEFAULT_PASSWORD: admin123
+  ports:
+    - "5050:80"
+  depends_on:
+    - postgres
+
   # =========================
   # Backend (Django + Daphne)
   # =========================
@@ -29,11 +40,7 @@ services:
       DJANGO_SETTINGS_MODULE: tafahom_api.settings.base
       ENVIRONMENT: PROD
     command: >
-      sh -c "
-      python src/manage.py migrate &&
-      python src/manage.py collectstatic --noinput &&
-      daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application
-      "
+      sh -c " python src/manage.py migrate && python src/manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application "
     volumes:
       - static_volume:/app/staticfiles
     depends_on:
@@ -54,7 +61,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tafahom -d asl_db"]
+      test: [ "CMD-SHELL", "pg_isready -U tafahom -d asl_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
