@@ -1,4 +1,6 @@
 import secrets
+from typing import Dict
+
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import check_password
@@ -35,9 +37,9 @@ class LoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        identifier = data["identifier"]
-        password = data["password"]
+        validated_data: Dict = serializer.validated_data
+        identifier = validated_data["identifier"]
+        password = validated_data["password"]
 
         try:
             user = User.objects.get(
@@ -88,9 +90,9 @@ class Login2FAView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        user_id = data["user_id"]
-        token = data["token"]
+        validated_data: Dict = serializer.validated_data
+        user_id = validated_data["user_id"]
+        token = validated_data["token"]
 
         try:
             user = User.objects.get(id=user_id)
@@ -101,7 +103,11 @@ class Login2FAView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not (two_fa.verify_token(token) or two_fa.use_backup_code(token)):
+        # Check if either token or backup code is valid
+        token_valid = two_fa.verify_token(token)
+        backup_valid = two_fa.use_backup_code(token)
+
+        if not (token_valid or backup_valid):
             return Response(
                 {"detail": _("Invalid authentication code")},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -146,6 +152,7 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # This line is now reachable because we're not returning immediately on exception
         refresh = RefreshToken.for_user(user)
 
         return Response(
@@ -161,7 +168,7 @@ class GoogleLoginView(APIView):
 
 
 # =====================================================
-# 🔄 REFRESH TOKEN (FIXED — WAS UNREACHABLE)
+# 🔄 REFRESH TOKEN (FIXED – WAS UNREACHABLE BEFORE)
 # =====================================================
 
 
@@ -173,20 +180,21 @@ class RefreshTokenView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        refresh_token = data["refresh_token"]
+        validated_data: Dict = serializer.validated_data
+        refresh_token = validated_data["refresh_token"]
 
         try:
             refresh = RefreshToken(refresh_token)
-            return Response(
-                {"access": str(refresh.access_token)},
-                status=status.HTTP_200_OK,
-            )
         except Exception:
             return Response(
                 {"detail": _("Invalid refresh token")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        return Response(
+            {"access": str(refresh.access_token)},
+            status=status.HTTP_200_OK,
+        )
 
 
 # =====================================================
@@ -223,8 +231,8 @@ class TwoFactorEnableView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        token = data["token"]
+        validated_data: Dict = serializer.validated_data
+        token = validated_data["token"]
 
         two_fa = models.TwoFactorAuth.objects.filter(user=request.user).first()
         if not two_fa or not two_fa.verify_token(token):
@@ -254,9 +262,9 @@ class TwoFactorDisableView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        password = data["password"]
-        token = data["token"]
+        validated_data: Dict = serializer.validated_data
+        password = validated_data["password"]
+        token = validated_data["token"]
 
         if authenticate(username=request.user.username, password=password) is None:
             return Response(
@@ -319,10 +327,12 @@ class ChangePasswordView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        old_password = data["old_password"]
-        new_password = data["new_password"]
+        validated_data: Dict = serializer.validated_data
+        old_password = validated_data["old_password"]
+        new_password = validated_data["new_password"]
 
+        # The serializer already validated the old password in its validation
+        # But we keep this check for additional security
         if not check_password(old_password, request.user.password):
             return Response(
                 {"detail": _("Old password incorrect")},
@@ -365,7 +375,7 @@ class PasswordResetRequestView(APIView):
 
             send_mail(
                 _("Password reset request"),
-                _("We received a password reset request.\n\n{link}").format(
+                _("Reset your password using this link:\n\n{link}").format(
                     link=reset_link
                 ),
                 getattr(settings, "DEFAULT_FROM_EMAIL", None),
@@ -387,9 +397,9 @@ class PasswordResetConfirmView(APIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        data = serializer.validated_data
-        token_value = data["token"]
-        new_password = data["new_password"]
+        validated_data: Dict = serializer.validated_data
+        token_value = validated_data["token"]
+        new_password = validated_data["new_password"]
 
         reset_token = (
             models.PasswordResetToken.objects.filter(
