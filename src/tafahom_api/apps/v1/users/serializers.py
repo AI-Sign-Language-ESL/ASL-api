@@ -1,31 +1,31 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from .models import Organization
+from django.db import transaction
 
 from tafahom_api.apps.v1.users.models import User
-
-# =========================
-# BASIC USER REGISTRATION
-# =========================
+from .models import Organization
 
 
-class BasicUserRegistrationSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
-    first_name = serializers.CharField(max_length=30)
-    last_name = serializers.CharField(max_length=30)
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+# ======================================================
+# 🔹 SHARED PASSWORD CONFIRMATION MIXIN
+# ======================================================
 
-    # Accept ALL common frontend styles
-    confirmPassword = serializers.CharField(write_only=True, required=False)
-    password_confirmation = serializers.CharField(write_only=True, required=False)
-    password_confirm = serializers.CharField(write_only=True, required=False)
 
-    def validate(self, data):
+class PasswordConfirmationMixin:
+    """
+    Accepts multiple frontend styles:
+    - confirmPassword
+    - password_confirmation
+    - password_confirm
+    """
+
+    def validate(self, attrs):
+        password = attrs.get("password")
+
         confirm = (
-            data.get("confirmPassword")
-            or data.get("password_confirmation")
-            or data.get("password_confirm")
+            attrs.get("confirmPassword")
+            or attrs.get("password_confirmation")
+            or attrs.get("password_confirm")
         )
 
         if not confirm:
@@ -33,24 +33,50 @@ class BasicUserRegistrationSerializer(serializers.Serializer):
                 {"confirmPassword": "Password confirmation is required."}
             )
 
-        if data["password"] != confirm:
+        if password != confirm:
             raise serializers.ValidationError(
                 {"confirmPassword": "Passwords do not match."}
             )
 
-        validate_password(data["password"])
+        validate_password(password)
+        return attrs
 
-        if User.objects.filter(username=data["username"]).exists():
+    def _pop_confirmation_fields(self, data):
+        for key in ("confirmPassword", "password_confirmation", "password_confirm"):
+            data.pop(key, None)
+
+
+# ======================================================
+# 👤 BASIC USER REGISTRATION
+# ======================================================
+
+
+class BasicUserRegistrationSerializer(
+    PasswordConfirmationMixin, serializers.Serializer
+):
+    username = serializers.CharField(max_length=150)
+    first_name = serializers.CharField(max_length=30)
+    last_name = serializers.CharField(max_length=30)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    confirmPassword = serializers.CharField(write_only=True, required=False)
+    password_confirmation = serializers.CharField(write_only=True, required=False)
+    password_confirm = serializers.CharField(write_only=True, required=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        if User.objects.filter(username__iexact=attrs["username"]).exists():
             raise serializers.ValidationError({"username": "Username already exists."})
 
-        if User.objects.filter(email=data["email"]).exists():
+        if User.objects.filter(email__iexact=attrs["email"]).exists():
             raise serializers.ValidationError({"email": "Email already exists."})
 
-        return data
+        return attrs
 
     def create(self, validated_data):
-        for key in ["confirmPassword", "password_confirmation", "password_confirm"]:
-            validated_data.pop(key, None)
+        self._pop_confirmation_fields(validated_data)
 
         return User.objects.create_user(
             username=validated_data["username"],
@@ -62,54 +88,43 @@ class BasicUserRegistrationSerializer(serializers.Serializer):
         )
 
 
-# =========================
-# ORGANIZATION REGISTRATION
-# =========================
+# ======================================================
+# 🏢 ORGANIZATION REGISTRATION
+# ======================================================
 
 
-class OrganizationRegistrationSerializer(serializers.Serializer):
+class OrganizationRegistrationSerializer(
+    PasswordConfirmationMixin, serializers.Serializer
+):
     organization_name = serializers.CharField(max_length=255)
     activity_type = serializers.CharField(max_length=255)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
+    first_name = serializers.CharField(max_length=30)
+    last_name = serializers.CharField(max_length=30)
+    job_title = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
     confirmPassword = serializers.CharField(write_only=True, required=False)
     password_confirmation = serializers.CharField(write_only=True, required=False)
     password_confirm = serializers.CharField(write_only=True, required=False)
 
-    first_name = serializers.CharField(max_length=30)
-    last_name = serializers.CharField(max_length=30)
-    job_title = serializers.CharField(max_length=255, required=False)
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
 
-    def validate(self, data):
-        confirm = (
-            data.get("confirmPassword")
-            or data.get("password_confirmation")
-            or data.get("password_confirm")
-        )
-
-        if not confirm:
-            raise serializers.ValidationError(
-                {"confirmPassword": "Password confirmation is required."}
-            )
-
-        if data["password"] != confirm:
-            raise serializers.ValidationError(
-                {"confirmPassword": "Passwords do not match."}
-            )
-
-        validate_password(data["password"])
-
-        if User.objects.filter(email=data["email"]).exists():
+        if User.objects.filter(email__iexact=attrs["email"]).exists():
             raise serializers.ValidationError({"email": "Email already exists."})
 
-        return data
+        return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
-        for key in ["confirmPassword", "password_confirmation", "password_confirm"]:
-            validated_data.pop(key, None)
+        self._pop_confirmation_fields(validated_data)
 
-        base_username = validated_data["organization_name"].replace(" ", "_").lower()
+        base_username = (
+            validated_data["organization_name"].strip().lower().replace(" ", "_")
+        )
+
         if User.objects.filter(username=base_username).exists():
             base_username = f"{base_username}_{validated_data['email'].split('@')[0]}"
 
@@ -132,27 +147,40 @@ class OrganizationRegistrationSerializer(serializers.Serializer):
         return user
 
 
-# =========================
-# USER RESPONSE
-# =========================
+# ======================================================
+# 👤 USER RESPONSE (FLUTTER SAFE)
+# ======================================================
 
 
 class UserResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "username", "email", "first_name", "last_name", "role")
+        fields = (
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+        )
 
 
-# =========================
-# PROFILE / EMAIL
-# =========================
+# ======================================================
+# ✏️ PROFILE / EMAIL
+# ======================================================
 
 
 class ChangeEmailSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
+    def validate_email(self, value):
+        user = self.context["request"].user
+        if User.objects.filter(email__iexact=value).exclude(id=user.id).exists():
+            raise serializers.ValidationError("Email already in use.")
+        return value
+
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["first_name", "last_name"]
+        fields = ("first_name", "last_name")

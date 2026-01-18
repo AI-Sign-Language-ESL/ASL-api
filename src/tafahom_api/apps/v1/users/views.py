@@ -11,9 +11,9 @@ from .serializers import (
     ProfileUpdateSerializer,
 )
 
-# =========================
-# BASIC USER REGISTER
-# =========================
+# ======================================================
+# 👤 BASIC USER REGISTRATION
+# ======================================================
 
 
 class BasicUserRegistrationView(generics.GenericAPIView):
@@ -21,35 +21,6 @@ class BasicUserRegistrationView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        user = serializer.save()
-        refresh = RefreshToken.for_user(user)
-
-        return Response(
-            {
-                "user": UserResponseSerializer(user).data,
-                "tokens": {
-                    "access": str(refresh.access_token),
-                    "refresh": str(refresh),
-                },
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-
-# =========================
-# ORGANIZATION REGISTER
-# =========================
-
-
-class OrganizationRegistrationView(generics.GenericAPIView):
-    serializer_class = OrganizationRegistrationSerializer
-    permission_classes = [AllowAny]
-
-    def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -59,18 +30,42 @@ class OrganizationRegistrationView(generics.GenericAPIView):
         return Response(
             {
                 "user": UserResponseSerializer(user).data,
-                "tokens": {
-                    "access": str(refresh.access_token),
-                    "refresh": str(refresh),
-                },
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
             },
             status=status.HTTP_201_CREATED,
         )
 
 
-# =========================
-# PROFILE
-# =========================
+# ======================================================
+# 🏢 ORGANIZATION REGISTRATION
+# ======================================================
+
+
+class OrganizationRegistrationView(generics.GenericAPIView):
+    serializer_class = OrganizationRegistrationSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "user": UserResponseSerializer(user).data,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+# ======================================================
+# 👤 PROFILE (GET)
+# ======================================================
 
 
 class MyProfileView(generics.RetrieveAPIView):
@@ -81,18 +76,34 @@ class MyProfileView(generics.RetrieveAPIView):
         return self.request.user
 
 
+# ======================================================
+# ✉️ CHANGE EMAIL
+# ======================================================
+
+
 class ChangeEmailView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ChangeEmailSerializer
 
-    def patch(self, request):
-        serializer = self.get_serializer(data=request.data)
+    def patch(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
+            data=request.data,
+            context={"request": request},
+        )
         serializer.is_valid(raise_exception=True)
 
         request.user.email = serializer.validated_data["email"]
         request.user.save(update_fields=["email"])
 
-        return Response({"message": "Email updated"})
+        return Response(
+            {"message": "Email updated successfully"},
+            status=status.HTTP_200_OK,
+        )
+
+
+# ======================================================
+# ✏️ UPDATE PROFILE
+# ======================================================
 
 
 class ProfileUpdateView(generics.UpdateAPIView):

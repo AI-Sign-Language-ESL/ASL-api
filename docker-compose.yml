@@ -44,11 +44,12 @@ services:
       DJANGO_SETTINGS_MODULE: tafahom_api.settings.base
       ENVIRONMENT: PROD
     command: >
-      sh -c " python src/manage.py migrate &&
-              python src/manage.py collectstatic --noinput &&
+      sh -c " python manage.py migrate &&
+              python manage.py collectstatic --noinput &&
               daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application "
     volumes:
       - static_volume:/app/staticfiles
+      - ./src:/app/src
     depends_on:
       postgres:
         condition: service_healthy
