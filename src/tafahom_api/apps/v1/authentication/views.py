@@ -34,49 +34,37 @@ class LoginView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        print(
+            f"DEBUG: Login attempt with data: {request.data}"
+        )  # Check what Flutter sends
+
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            print(f"DEBUG: Serializer errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        validated_data: Dict = serializer.validated_data
-        email = validated_data["email"]
-        password = validated_data["password"]
+        email = serializer.validated_data["email"]
+        password = serializer.validated_data["password"]
 
-        # 1. Find user strictly by Email
+        # 1. Check if user exists
         try:
             user = User.objects.get(email__iexact=email)
+            print(f"DEBUG: User found: {user.username} (ID: {user.id})")
+            print(f"DEBUG: User is active? {user.is_active}")
         except User.DoesNotExist:
-            # Security: Use generic message to prevent email enumeration
-            return Response(
-                {"detail": _("Invalid credentials")},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+            print(f"DEBUG: User with email '{email}' NOT FOUND")
+            return Response({"detail": "User not found"}, status=401)
 
-        # 2. Authenticate using the found user's actual username
-        # (Django's authenticate() always requires the 'username' kwarg internally)
+        # 2. Check Password
         authenticated_user = authenticate(
-            request,
-            username=user.username,
-            password=password,
+            request, username=user.username, password=password
         )
 
         if authenticated_user is None:
-            return Response(
-                {"detail": _("Invalid credentials")},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+            print("DEBUG: Password mismatch or inactive user")
+            return Response({"detail": "Wrong password"}, status=401)
 
-        refresh = RefreshToken.for_user(authenticated_user)
-
-        return Response(
-            {
-                "user": UserResponseSerializer(authenticated_user).data,
-                "tokens": {
-                    "access": str(refresh.access_token),
-                    "refresh": str(refresh),
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
+        # ... Success logic ...
 
 
 # =====================================================
