@@ -38,19 +38,21 @@ class LoginView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         validated_data: Dict = serializer.validated_data
-        identifier = validated_data["identifier"]
+        email = validated_data["email"]
         password = validated_data["password"]
 
+        # 1. Find user strictly by Email
         try:
-            user = User.objects.get(
-                Q(username__iexact=identifier) | Q(email__iexact=identifier)
-            )
+            user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
+            # Security: Use generic message to prevent email enumeration
             return Response(
                 {"detail": _("Invalid credentials")},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        # 2. Authenticate using the found user's actual username
+        # (Django's authenticate() always requires the 'username' kwarg internally)
         authenticated_user = authenticate(
             request,
             username=user.username,
