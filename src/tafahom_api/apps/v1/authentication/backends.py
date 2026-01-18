@@ -3,18 +3,25 @@ from tafahom_api.apps.v1.users.models import User
 
 
 class EmailOrUsernameBackend(ModelBackend):
+    """
+    NU-Quran style:
+    - Accepts email OR username in the same field
+    - Delegates permission checks to ModelBackend
+    """
+
     def authenticate(self, request, username=None, password=None, **kwargs):
-        if username is None or password is None:
+        if not username or not password:
             return None
 
-        try:
-            user = User.objects.get(email__iexact=username)
-        except User.DoesNotExist:
-            try:
-                user = User.objects.get(username__iexact=username)
-            except User.DoesNotExist:
-                return None
+        user = (
+            User.objects.filter(username__iexact=username).first()
+            or User.objects.filter(email__iexact=username).first()
+        )
+
+        if not user:
+            return None
 
         if user.check_password(password) and self.user_can_authenticate(user):
             return user
+
         return None

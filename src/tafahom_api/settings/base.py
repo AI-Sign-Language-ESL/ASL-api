@@ -52,6 +52,7 @@ SECURE_HSTS_PRELOAD = ENVIRONMENT == "PROD"
 SECURE_SSL_REDIRECT = ENVIRONMENT == "PROD"
 AUTHENTICATION_BACKENDS = [
     "tafahom_api.apps.v1.authentication.backends.EmailOrUsernameBackend",
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 # =============================================================================
