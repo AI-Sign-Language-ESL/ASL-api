@@ -10,8 +10,11 @@ from tafahom_api.apps.v1.users.models import User
 # =========================
 
 
+# authentication/serializers.py
+
+
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    identifier = serializers.CharField()  # username OR email
     password = serializers.CharField(write_only=True)
 
 
