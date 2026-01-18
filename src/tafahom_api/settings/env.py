@@ -112,3 +112,10 @@ CORS_ALLOWED_ORIGINS = [
 # OPTIONAL
 # =============================================================================
 SENTRY_DSN = os.getenv("SENTRY_DSN")
+# =============================================================================
+# GOOGLE AUTH
+# =============================================================================
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
+if ENVIRONMENT == "PROD" and not GOOGLE_CLIENT_ID:
+    raise RuntimeError("GOOGLE_CLIENT_ID is required in PROD")

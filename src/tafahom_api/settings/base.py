@@ -26,6 +26,7 @@ from .env import (
     AI_GLOSS_TO_TEXT_BASE_URL,
     AI_TEXT_TO_GLOSS_BASE_URL,
     AI_CV_BASE_URL,
+    GOOGLE_CLIENT_ID,
 )
 
 # =============================================================================
@@ -38,6 +39,7 @@ ALLOWED_HOSTS = ALLOWED_HOSTS
 ROOT_URLCONF = "tafahom_api.urls"
 ASGI_APPLICATION = "tafahom_api.asgi.application"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+GOOGLE_CLIENT_ID = GOOGLE_CLIENT_ID
 
 # =============================================================================
 # SECURITY
