@@ -1,3 +1,5 @@
+import asyncio
+
 from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -17,7 +19,11 @@ from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
 from tafahom_api.apps.v1.translation.services.sign_video_service import (
-    generate_sign_video,
+    generate_sign_video_from_gloss,
+)
+
+from tafahom_api.apps.v1.translation.services.streaming_translation_service import (
+    TranslationPipelineService,
 )
 
 # =====================================================
@@ -137,7 +143,13 @@ class TranslationStatusView(generics.RetrieveAPIView):
 class TranslateToSignView(generics.GenericAPIView):
     """
     Text → Sign Language (Video).
-    Generates a concatenated MP4 using FFmpeg.
+
+    Pipeline:
+    Text
+    → Arabic Gloss AI (text_to_gloss)
+    → Arabic gloss tokens
+    → Gloss → Video mapping
+    → FFmpeg
     """
 
     permission_classes = [IsAuthenticated]
@@ -162,15 +174,32 @@ class TranslateToSignView(generics.GenericAPIView):
 
         text = serializer.validated_data.get("text")
 
-        # 🔹 Generate sign video (cached)
+        # -------------------------------------------------
+        # 1️⃣ AI: Text → Arabic Gloss
+        # -------------------------------------------------
         try:
-            video_url = generate_sign_video(text)
+            ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
+            gloss_tokens = ai_result.get("gloss")
+        except Exception:
+            return Response(
+                {"detail": "Failed to generate gloss from text"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # -------------------------------------------------
+        # 2️⃣ Gloss → Sign Video (FFmpeg)
+        # -------------------------------------------------
+        try:
+            video_url = generate_sign_video_from_gloss(gloss_tokens)
         except ValueError as e:
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # -------------------------------------------------
+        # 3️⃣ Save + Consume Credit
+        # -------------------------------------------------
         with transaction.atomic():
             consume_translation_credit(subscription)
 

@@ -10,19 +10,28 @@ GENERATED_DIR = os.path.join(MEDIA_ROOT, "generated")
 os.makedirs(GENERATED_DIR, exist_ok=True)
 
 
-def generate_sign_video(text: str) -> str:
-    words = text.strip().lower().split()
+def generate_sign_video_from_gloss(gloss_tokens: list[str]) -> str:
+    """
+    gloss_tokens example:
+    ["اسعاف", "حريق", "مشكله_كبيره"]
+    """
+
+    if not gloss_tokens:
+        raise ValueError("Empty gloss list")
 
     files = []
-    for w in words:
-        if w not in SIGN_MAP:
-            raise ValueError(f"No sign for word: {w}")
-        files.append(os.path.join(SIGNS_DIR, SIGN_MAP[w]))
+    for token in gloss_tokens:
+        token = token.strip()
 
-    sentence_hash = hashlib.md5("_".join(words).encode()).hexdigest()
+        if token not in SIGN_MAP:
+            raise ValueError(f"No sign video for gloss: {token}")
+
+        files.append(os.path.join(SIGNS_DIR, SIGN_MAP[token]))
+
+    # ✅ Cache based on canonical gloss
+    sentence_hash = hashlib.md5("_".join(gloss_tokens).encode()).hexdigest()
     output_path = os.path.join(GENERATED_DIR, f"{sentence_hash}.mp4")
 
-    # ✅ CACHE HIT
     if os.path.exists(output_path):
         return f"https://www.tafahom.io/media/generated/{sentence_hash}.mp4"
 
