@@ -9,7 +9,8 @@ from typing import List
 from django.utils import timezone
 from channels.db import database_sync_to_async
 
-from .pipeline_service import TranslationPipelineService
+# Import the Pipeline Service we fixed above
+from pipeline_service import TranslationPipelineService
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
 logger = logging.getLogger(__name__)
@@ -17,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 class StreamingTranslationService:
     """
-    Streaming logic, buffering, AI calls, billing, DB lifecycle.
-    ASGI-safe, Daphne-safe, production-ready.
+    Stateful Logic for WebSocket Streaming.
+    Buffers frames, manages AI loop, handles billing.
     """
 
     def __init__(self, *, user, send_json, close_ws, config):
@@ -34,7 +35,7 @@ class StreamingTranslationService:
         self.buffer_lock = asyncio.Lock()
 
         self.translation = None
-        self.output_type = None
+        self.output_type = "text"
         self.running = False
         self.closed = False
 
@@ -46,11 +47,12 @@ class StreamingTranslationService:
 
         self.task: asyncio.Task | None = None
 
-    # -----------------------------------------------------
     async def start(self):
+        """Called on WS connect"""
         self.task = asyncio.create_task(self._ai_loop())
 
     async def shutdown(self):
+        """Called on WS disconnect"""
         self.closed = True
         self.running = False
 
@@ -64,11 +66,11 @@ class StreamingTranslationService:
 
         self.frame_buffer.clear()
 
-    # -----------------------------------------------------
     async def on_frame(self, frame: bytes):
         if not self.running:
             return
 
+        # Fast append, minimal logic here
         async with self.buffer_lock:
             if len(self.frame_buffer) >= self.config["MAX_BUFFER_SIZE"]:
                 return
@@ -79,6 +81,9 @@ class StreamingTranslationService:
         await self.send_json({"type": "pong"})
 
     # -----------------------------------------------------
+    # SESSION MANAGEMENT
+    # -----------------------------------------------------
+
     async def start_translation(self, output_type: str):
         if self.running:
             return
@@ -88,13 +93,17 @@ class StreamingTranslationService:
             await self.close_ws(code=4011)
             return
 
+        # Async DB Check
         subscription = getattr(self.user, "subscription", None)
-        if not subscription or not subscription.can_consume(1):
+        has_credit = await database_sync_to_async(
+            lambda: subscription and subscription.can_consume(1)
+        )()
+
+        if not has_credit:
             await self.send_json({"type": "error", "message": "Not enough credits"})
             return
 
         await self._consume_credit(subscription)
-
         self.translation = await self._create_translation(output_type)
 
         self.requests_count += 1
@@ -110,7 +119,7 @@ class StreamingTranslationService:
             {
                 "type": "status",
                 "status": "processing",
-                "translation_id": self.translation.id,
+                "translation_id": self.translation.pk,
             }
         )
 
@@ -127,11 +136,16 @@ class StreamingTranslationService:
         await self.send_json({"type": "status", "status": "stopped"})
 
     # -----------------------------------------------------
+    # MAIN LOOP
+    # -----------------------------------------------------
+
     async def _ai_loop(self):
         try:
             while not self.closed:
+                # Polling interval (100ms)
                 await asyncio.sleep(0.1)
 
+                # Timeouts / Zombie checks
                 if (
                     time.time() - self.connection_started_at
                     > self.config["WS_MAX_CONNECTION_TIME"]
@@ -143,12 +157,14 @@ class StreamingTranslationService:
                     await self.close_ws(code=4010)
                     return
 
+                # Skip if not translating or too early
                 if not self.running:
                     continue
 
                 if time.time() - self.last_sent < self.config["SEND_INTERVAL"]:
                     continue
 
+                # Buffer Extraction
                 async with self.buffer_lock:
                     if not self.frame_buffer:
                         continue
@@ -161,6 +177,7 @@ class StreamingTranslationService:
                     )
                     continue
 
+                # AI Processing
                 await self._process_batch(frames)
                 self.last_sent = time.time()
 
@@ -176,25 +193,32 @@ class StreamingTranslationService:
     async def _process_batch(self, frames: List[bytes]):
         try:
             if self.output_type == "text":
-                text = await asyncio.wait_for(
+                # Returns: {'text': 'Hello'}
+                response = await asyncio.wait_for(
                     TranslationPipelineService.sign_to_text(frames),
                     timeout=self.config["PIPELINE_TIMEOUT_SECONDS"],
                 )
+
+                # FIX: Extract the text string from the dictionary
+                text = response.get("text")
                 if text:
                     self.partial_text_buffer.append(text)
                     await self.send_json({"type": "partial_result", "text": text})
+
             else:
+                # Returns: {'text': 'Hello', 'audio': '...'}
                 result = await asyncio.wait_for(
                     TranslationPipelineService.sign_to_voice(frames),
                     timeout=self.config["PIPELINE_TIMEOUT_SECONDS"],
                 )
-                if result:
+
+                if result and result.get("text"):
                     self.partial_text_buffer.append(result["text"])
                     await self.send_json(
                         {
                             "type": "partial_result",
                             "text": result["text"],
-                            "audio": result["audio"],
+                            "audio": result.get("audio"),
                         }
                     )
 
@@ -213,14 +237,16 @@ class StreamingTranslationService:
         if not self.translation:
             return
 
+        final_text = " ".join(self.partial_text_buffer)
+
         await self._update_translation(
-            output_text=" ".join(self.partial_text_buffer),
+            output_text=final_text,
             status="completed",
             completed_at=timezone.now(),
         )
 
     # -----------------------------------------------------
-    # ASYNC DB / BILLING HELPERS (ASGI SAFE)
+    # DB HELPERS
     # -----------------------------------------------------
 
     @database_sync_to_async
@@ -229,8 +255,7 @@ class StreamingTranslationService:
 
     @database_sync_to_async
     def _create_translation(self, output_type):
-        # ✅ LAZY IMPORT — FIXES AppRegistryNotReady
-        from ..models import TranslationRequest
+        from ..models import TranslationRequest  # Lazy import
 
         return TranslationRequest.objects.create(
             user=self.user,
@@ -245,6 +270,8 @@ class StreamingTranslationService:
 
     @database_sync_to_async
     def _update_translation(self, **fields):
+        if not self.translation:
+            return
         for key, value in fields.items():
             setattr(self.translation, key, value)
         self.translation.save(update_fields=list(fields.keys()))
