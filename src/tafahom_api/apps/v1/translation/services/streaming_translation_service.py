@@ -10,7 +10,7 @@ from django.utils import timezone
 from channels.db import database_sync_to_async
 
 # Import the Pipeline Service we fixed above
-from pipeline_service import TranslationPipelineService
+from .pipeline_service import TranslationPipelineService
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
 logger = logging.getLogger(__name__)
