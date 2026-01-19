@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.parsers import MultiPartParser, FormParser
+
 from .models import TranslationRequest, SignLanguageConfig
 from .serializers import (
     TranslationRequestCreateSerializer,
@@ -15,6 +16,9 @@ from .serializers import (
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
+from tafahom_api.apps.v1.translation.services.sign_video_service import (
+    generate_sign_video,
+)
 
 # =====================================================
 # HELPERS
@@ -23,15 +27,13 @@ from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
 def _get_or_create_wallet(user):
     """
-    Helper to ensure a user has a subscription wallet before processing payments.
+    Ensure the user has a subscription wallet.
     """
     try:
         return user.subscription
     except ObjectDoesNotExist:
-        # Auto-create free wallet if missing
         free_plan = SubscriptionPlan.objects.filter(plan_type="free").first()
         if not free_plan:
-            # Fallback to any active plan to keep system running
             free_plan = SubscriptionPlan.objects.filter(is_active=True).first()
 
         if not free_plan:
@@ -53,20 +55,21 @@ def _get_or_create_wallet(user):
 
 
 class SignLanguageListView(generics.ListAPIView):
-
     permission_classes = [AllowAny]
     serializer_class = SignLanguageConfigSerializer
     queryset = SignLanguageConfig.objects.all().order_by("id")
 
 
 class TranslationRequestCreateView(generics.CreateAPIView):
+    """
+    Generic translation request creation (any direction).
+    """
 
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
 
     def post(self, request, *args, **kwargs):
-
         subscription = _get_or_create_wallet(request.user)
         if not subscription:
             return Response(
@@ -76,25 +79,22 @@ class TranslationRequestCreateView(generics.CreateAPIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # 2. Check Credits
         if not subscription.can_consume(1):
             return Response(
                 {"detail": "Not enough credits"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 3. Validate Data
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # 4. Atomic Transaction: Consume Credit + Save Request
         with transaction.atomic():
             consume_translation_credit(subscription)
+            translation = serializer.save(
+                user=request.user,
+                status="pending",
+            )
 
-            # Save with user and pending status
-            translation = serializer.save(user=request.user, status="pending")
-
-        # 5. Return Response
         return Response(
             {
                 "id": translation.id,
@@ -108,7 +108,7 @@ class TranslationRequestCreateView(generics.CreateAPIView):
 
 class MyTranslationRequestsView(generics.ListAPIView):
     """
-    Lists translation history for the authenticated user.
+    List translation history for the authenticated user.
     """
 
     permission_classes = [IsAuthenticated]
@@ -126,18 +126,18 @@ class TranslationStatusView(generics.RetrieveAPIView):
     queryset = TranslationRequest.objects.all()
 
     def get_queryset(self):
-        # 🔐 Users can only see their own translations
         return super().get_queryset().filter(user=self.request.user)
 
 
 # =====================================================
-# LEGACY / SPECIFIC VIEWS
+# TEXT → SIGN (VIDEO)
 # =====================================================
 
 
 class TranslateToSignView(generics.GenericAPIView):
     """
-    Specific endpoint for Text -> Sign.
+    Text → Sign Language (Video).
+    Generates a concatenated MP4 using FFmpeg.
     """
 
     permission_classes = [IsAuthenticated]
@@ -147,9 +147,7 @@ class TranslateToSignView(generics.GenericAPIView):
         subscription = _get_or_create_wallet(request.user)
         if not subscription:
             return Response(
-                {
-                    "detail": "System Configuration Error: No subscription plans available."
-                },
+                {"detail": "System Configuration Error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -162,19 +160,32 @@ class TranslateToSignView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        text = serializer.validated_data.get("text")
+
+        # 🔹 Generate sign video (cached)
+        try:
+            video_url = generate_sign_video(text)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         with transaction.atomic():
             consume_translation_credit(subscription)
 
             translation = serializer.save(
                 user=request.user,
                 direction="to_sign",
-                status="completed",  # Mocked for MVP
+                status="completed",
+                output_url=video_url,
             )
 
         return Response(
             {
                 "id": translation.id,
                 "status": translation.status,
+                "video": video_url,
                 "remaining_credits": subscription.remaining_credits(),
             },
             status=status.HTTP_201_CREATED,
