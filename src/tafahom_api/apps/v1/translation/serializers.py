@@ -31,8 +31,8 @@ class TranslationRequestCreateSerializer(serializers.ModelSerializer):
             "output_type",
             "input_text",
             "input_audio",
-            "input_video",  # ✅ Required for video uploads
-            "source_language",  # ✅ Required for the test
+            "input_video",
+            "source_language",
         ]
         read_only_fields = ["id"]
 
@@ -40,18 +40,14 @@ class TranslationRequestCreateSerializer(serializers.ModelSerializer):
         direction = data.get("direction")
         input_type = data.get("input_type")
 
-        # Validation 1: Text/Voice -> Sign
         if direction == "to_sign" and input_type not in ("text", "voice"):
             raise serializers.ValidationError(
                 "Text/Voice → Sign only accepts text or voice input."
             )
 
-        # Validation 2: Sign -> Text (Video Upload vs WebSocket)
-        # We allow HTTP requests for 'from_sign' ONLY if it's a video file (Batch mode).
-        # Real-time streaming should still use WebSockets, but we don't block the API here.
         if direction == "from_sign" and input_type != "video":
             raise serializers.ValidationError(
-                "Sign translation via HTTP requires a video file input."
+                "Sign → Text via HTTP requires video input."
             )
 
         return data
@@ -81,3 +77,8 @@ class TranslationRequestStatusSerializer(serializers.ModelSerializer):
             "output_video",
             "error_message",
         ]
+
+
+# 🔥 DEDICATED TEXT → SIGN SERIALIZER
+class TextToSignSerializer(serializers.Serializer):
+    text = serializers.CharField(required=True, allow_blank=False)
