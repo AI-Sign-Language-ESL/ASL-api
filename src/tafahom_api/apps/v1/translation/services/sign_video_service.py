@@ -1,7 +1,9 @@
+# sign_video_service.py
+
 import os
 import subprocess
 import hashlib
-from ..sign_map import SIGN_MAP
+from .sign_map import SIGN_MAP
 
 MEDIA_ROOT = "/app/media"
 SIGNS_DIR = os.path.join(MEDIA_ROOT, "signs")
@@ -11,24 +13,18 @@ os.makedirs(GENERATED_DIR, exist_ok=True)
 
 
 def generate_sign_video_from_gloss(gloss_tokens: list[str]) -> str:
-    """
-    gloss_tokens example:
-    ["اسعاف", "حريق", "مشكله_كبيره"]
-    """
-
     if not gloss_tokens:
         raise ValueError("Empty gloss list")
 
     files = []
+
     for token in gloss_tokens:
         token = token.strip()
-
         if token not in SIGN_MAP:
             raise ValueError(f"No sign video for gloss: {token}")
 
         files.append(os.path.join(SIGNS_DIR, SIGN_MAP[token]))
 
-    # ✅ Cache based on canonical gloss
     sentence_hash = hashlib.md5("_".join(gloss_tokens).encode()).hexdigest()
     output_path = os.path.join(GENERATED_DIR, f"{sentence_hash}.mp4")
 
