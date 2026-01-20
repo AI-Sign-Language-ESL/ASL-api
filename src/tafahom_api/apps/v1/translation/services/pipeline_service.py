@@ -19,7 +19,6 @@ logger = logging.getLogger("translation")
 class TranslationPipelineService:
     """
     Production-grade AI orchestration layer.
-    Coordinates CV, NLP, and Speech services.
     """
 
     _cv_client = ComputerVisionClient()
@@ -37,7 +36,7 @@ class TranslationPipelineService:
         return await asyncio.wait_for(coro, timeout=settings.AI_TIMEOUT)
 
     @staticmethod
-    def _validate_non_empty(value: Any, name: str) -> None:
+    def _validate_non_empty(value: Any, name: str):
         if value is None:
             raise ValueError(f"{name} is None")
 
@@ -48,42 +47,46 @@ class TranslationPipelineService:
             raise ValueError(f"{name} is empty")
 
     @staticmethod
-    def _normalize_gloss(value: Any) -> List[str]:
-        """
-        Accepts string / list / any and returns a clean list of gloss tokens.
-        """
-        if isinstance(value, list):
-            return [str(v).strip() for v in value if str(v).strip()]
+    def _extract_text(resp: Any) -> str:
+        if isinstance(resp, dict):
+            text = (
+                resp.get("text")
+                or resp.get("output")
+                or resp.get("result")
+                or resp.get("prediction")
+            )
+        else:
+            text = resp
 
-        if isinstance(value, str):
-            return value.strip().split()
+        if not text:
+            raise ValueError("Text not returned from CV/STT")
 
-        return [str(value).strip()]
+        return str(text)
 
     @staticmethod
-    def _extract_gloss(nlp_resp: Dict[str, Any]) -> List[str]:
-        """
-        Safely extract gloss from ANY NLP response format.
-        """
-        if not isinstance(nlp_resp, dict):
-            raise ValueError("Invalid NLP response format")
+    def _extract_gloss(resp: Dict[str, Any]) -> List[str]:
+        if not isinstance(resp, dict):
+            raise ValueError("Invalid NLP response")
 
-        raw_gloss = (
-            nlp_resp.get("gloss")
-            or nlp_resp.get("output")
-            or nlp_resp.get("result")
-            or nlp_resp.get("prediction")
-            or nlp_resp.get("text")
+        raw = (
+            resp.get("gloss")
+            or resp.get("output")
+            or resp.get("result")
+            or resp.get("prediction")
+            or resp.get("text")
         )
 
-        if raw_gloss is None:
-            logger.error("NLP response missing gloss: %s", nlp_resp)
+        if raw is None:
+            logger.error("NLP response missing gloss: %s", resp)
             raise ValueError("Gloss not returned from NLP model")
 
-        return TranslationPipelineService._normalize_gloss(raw_gloss)
+        if isinstance(raw, list):
+            return [str(x).strip() for x in raw if str(x).strip()]
+
+        return str(raw).strip().split()
 
     @staticmethod
-    def _log_stage(stage: str, start: float, request_id: str) -> None:
+    def _log_stage(stage: str, start: float, request_id: str):
         logger.info(
             "pipeline_stage_completed",
             extra={
@@ -104,15 +107,15 @@ class TranslationPipelineService:
         try:
             cls._validate_non_empty(frames, "frames")
 
-            # CV → TEXT
             t = time.perf_counter()
-            cv_resp = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+            cv_resp = await cls._with_timeout(
+                cls._cv_client.sign_to_gloss(frames)  # CV RETURNS TEXT
+            )
 
-            raw_text = cv_resp.get("text") if isinstance(cv_resp, dict) else cv_resp
-            cls._validate_non_empty(raw_text, "text")
-
+            text = cls._extract_text(cv_resp)
             cls._log_stage("cv.sign_to_text", t, request_id)
-            return {"text": str(raw_text)}
+
+            return {"text": text}
 
         except Exception as exc:
             logger.exception(
@@ -132,17 +135,12 @@ class TranslationPipelineService:
         try:
             cls._validate_non_empty(frames, "frames")
 
-            # CV → TEXT
             t = time.perf_counter()
             cv_resp = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
 
-            raw_text = cv_resp.get("text") if isinstance(cv_resp, dict) else cv_resp
-            cls._validate_non_empty(raw_text, "text")
-
-            text = str(raw_text)
+            text = cls._extract_text(cv_resp)
             cls._log_stage("cv.sign_to_text", t, request_id)
 
-            # TTS
             t = time.perf_counter()
             audio = await cls._with_timeout(cls._tts_client.text_to_speech(text))
             cls._validate_non_empty(audio, "audio")
@@ -196,19 +194,14 @@ class TranslationPipelineService:
         try:
             audio_file = ensure_wav(uploaded_file)
 
-            # STT
             t = time.perf_counter()
             stt_resp = await cls._with_timeout(
                 cls._stt_client.speech_to_text(audio_file)
             )
 
-            raw_text = stt_resp.get("text") if isinstance(stt_resp, dict) else stt_resp
-            cls._validate_non_empty(raw_text, "text")
-
-            text = str(raw_text)
+            text = cls._extract_text(stt_resp)
             cls._log_stage("speech.speech_to_text", t, request_id)
 
-            # NLP
             t = time.perf_counter()
             nlp_resp = await cls._with_timeout(
                 cls._text_to_gloss_client.text_to_gloss(text)
