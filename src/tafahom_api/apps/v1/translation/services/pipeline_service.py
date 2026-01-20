@@ -19,7 +19,7 @@ from tafahom_api.apps.v1.ai.utils.ensure_wav import ensure_wav
 from tafahom_api.apps.v1.translation.services.sign_video_service import (
     generate_sign_video_from_gloss,
 )
-from tafahom_api.apps.v1.translation.services.sign_map import SIGN_MAP, SYNONYM_MAP
+from tafahom_api.apps.v1.translation.sign_map import SIGN_MAP, SYNONYM_MAP
 
 logger = logging.getLogger("translation")
 
