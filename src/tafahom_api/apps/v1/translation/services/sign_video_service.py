@@ -3,7 +3,7 @@
 import os
 import subprocess
 import hashlib
-from .sign_map import SIGN_MAP
+from ..sign_map import SIGN_MAP
 
 MEDIA_ROOT = "/app/media"
 SIGNS_DIR = os.path.join(MEDIA_ROOT, "signs")
