@@ -250,6 +250,7 @@ class SpeechToTextView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        # ✅ Modal already returns clean JSON
         return Response(
             {"text": result.get("text", "")},
             status=status.HTTP_200_OK,
