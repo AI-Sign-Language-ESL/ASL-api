@@ -13,7 +13,6 @@ from .serializers import (
     TranslationRequestStatusSerializer,
     SignLanguageConfigSerializer,
     TranslationRequestListSerializer,
-    TextToSignSerializer,
 )
 
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
@@ -27,12 +26,20 @@ from tafahom_api.apps.v1.translation.services.streaming_translation_service impo
     TranslationPipelineService,
 )
 
+from rest_framework.views import APIView
+from rest_framework import status
+
+from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
+
 # =====================================================
 # HELPERS
 # =====================================================
 
 
 def _get_or_create_wallet(user):
+    """
+    Ensure the user has a subscription wallet.
+    """
     try:
         return user.subscription
     except ObjectDoesNotExist:
@@ -65,6 +72,10 @@ class SignLanguageListView(generics.ListAPIView):
 
 
 class TranslationRequestCreateView(generics.CreateAPIView):
+    """
+    Generic translation request creation (any direction).
+    """
+
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
@@ -73,7 +84,9 @@ class TranslationRequestCreateView(generics.CreateAPIView):
         subscription = _get_or_create_wallet(request.user)
         if not subscription:
             return Response(
-                {"detail": "System Configuration Error"},
+                {
+                    "detail": "System Configuration Error: No subscription plans available."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -105,6 +118,10 @@ class TranslationRequestCreateView(generics.CreateAPIView):
 
 
 class MyTranslationRequestsView(generics.ListAPIView):
+    """
+    List translation history for the authenticated user.
+    """
+
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestListSerializer
 
@@ -117,20 +134,31 @@ class MyTranslationRequestsView(generics.ListAPIView):
 class TranslationStatusView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestStatusSerializer
+    queryset = TranslationRequest.objects.all()
 
     def get_queryset(self):
         return super().get_queryset().filter(user=self.request.user)
 
 
 # =====================================================
-# TEXT → SIGN (FINAL, CORRECT)
+# TEXT → SIGN (VIDEO)
 # =====================================================
 
 
 class TranslateToSignView(generics.GenericAPIView):
+    """
+    Text → Sign Language (Video).
+
+    Pipeline:
+    Text
+    → Arabic Gloss AI (text_to_gloss)
+    → Arabic gloss tokens
+    → Gloss → Video mapping
+    → FFmpeg
+    """
+
     permission_classes = [IsAuthenticated]
-    serializer_class = TextToSignSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = TranslationRequestCreateSerializer
 
     def post(self, request):
         subscription = _get_or_create_wallet(request.user)
@@ -149,19 +177,23 @@ class TranslateToSignView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        text = serializer.validated_data["text"]
+        text = serializer.validated_data.get("text")
 
-        # 1️⃣ NLP: Text → Gloss
+        # -------------------------------------------------
+        # 1️⃣ AI: Text → Arabic Gloss
+        # -------------------------------------------------
         try:
             ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
-            gloss_tokens = ai_result["gloss"]
+            gloss_tokens = ai_result.get("gloss")
         except Exception:
             return Response(
-                {"detail": "Failed to generate gloss"},
+                {"detail": "Failed to generate gloss from text"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # 2️⃣ Gloss → Video
+        # -------------------------------------------------
+        # 2️⃣ Gloss → Sign Video (FFmpeg)
+        # -------------------------------------------------
         try:
             video_url = generate_sign_video_from_gloss(gloss_tokens)
         except ValueError as e:
@@ -170,18 +202,17 @@ class TranslateToSignView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # -------------------------------------------------
         # 3️⃣ Save + Consume Credit
+        # -------------------------------------------------
         with transaction.atomic():
             consume_translation_credit(subscription)
 
-            translation = TranslationRequest.objects.create(
+            translation = serializer.save(
                 user=request.user,
                 direction="to_sign",
-                input_type="text",
-                output_type="video",
-                input_text=text,
                 status="completed",
-                output_video=video_url,
+                output_url=video_url,
             )
 
         return Response(
@@ -192,4 +223,32 @@ class TranslateToSignView(generics.GenericAPIView):
                 "remaining_credits": subscription.remaining_credits(),
             },
             status=status.HTTP_201_CREATED,
+        )
+
+class SpeechToTextView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
+
+    async def post(self, request):
+        audio_file = request.FILES.get("file")
+
+        if not audio_file:
+            return Response(
+                {"detail": "No audio file provided"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        client = SpeechToTextClient()
+
+        try:
+            result = await client.speech_to_text(audio_file)
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {"text": result.get("text", "")},
+            status=status.HTTP_200_OK,
         )
