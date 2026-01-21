@@ -30,6 +30,7 @@ from rest_framework.views import APIView
 from rest_framework import status
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
+from asgiref.sync import async_to_sync
 
 # =====================================================
 # HELPERS
@@ -225,30 +226,30 @@ class TranslateToSignView(generics.GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-class SpeechToTextView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser]
+    class SpeechToTextView(APIView):
+        permission_classes = [IsAuthenticated]
+        parser_classes = [MultiPartParser]
 
-    async def post(self, request):
-        audio_file = request.FILES.get("file")
+        def post(self, request):
+            audio_file = request.FILES.get("file")
 
-        if not audio_file:
+            if not audio_file:
+                return Response(
+                    {"detail": "No audio file provided"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            client = SpeechToTextClient()
+
+            try:
+                result = async_to_sync(client.speech_to_text)(audio_file)
+            except Exception as e:
+                return Response(
+                    {"detail": str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
             return Response(
-                {"detail": "No audio file provided"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"text": result.get("text", "")},
+                status=status.HTTP_200_OK,
             )
-
-        client = SpeechToTextClient()
-
-        try:
-            result = await client.speech_to_text(audio_file)
-        except Exception as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        return Response(
-            {"text": result.get("text", "")},
-            status=status.HTTP_200_OK,
-        )
