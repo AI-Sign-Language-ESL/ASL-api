@@ -226,30 +226,31 @@ class TranslateToSignView(generics.GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-    class SpeechToTextView(APIView):
-        permission_classes = [IsAuthenticated]
-        parser_classes = [MultiPartParser]
 
-        def post(self, request):
-            audio_file = request.FILES.get("file")
+class SpeechToTextView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
 
-            if not audio_file:
-                return Response(
-                    {"detail": "No audio file provided"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+    def post(self, request):
+        audio_file = request.FILES.get("file")
 
-            client = SpeechToTextClient()
-
-            try:
-                result = async_to_sync(client.speech_to_text)(audio_file)
-            except Exception as e:
-                return Response(
-                    {"detail": str(e)},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
+        if not audio_file:
             return Response(
-                {"text": result.get("text", "")},
-                status=status.HTTP_200_OK,
+                {"detail": "No audio file provided"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        client = SpeechToTextClient()
+
+        try:
+            result = async_to_sync(client.speech_to_text)(audio_file)
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {"text": result.get("text", "")},
+            status=status.HTTP_200_OK,
+        )
