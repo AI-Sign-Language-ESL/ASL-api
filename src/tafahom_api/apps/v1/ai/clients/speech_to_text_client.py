@@ -1,4 +1,5 @@
 import httpx
+import json
 from django.conf import settings
 from .base import BaseAIClient
 
@@ -16,7 +17,6 @@ class SpeechToTextClient(BaseAIClient):
                 "/predict",
                 files={"file": audio_file},
             )
-
         except httpx.HTTPStatusError as e:
             if e.response.status_code in (404, 405):
                 response = await self._post_file(
@@ -26,11 +26,17 @@ class SpeechToTextClient(BaseAIClient):
             else:
                 raise
 
-        # 🔥 CRITICAL FIX
+        # 🔥 FORCE NORMALIZATION (NO ASSUMPTIONS)
         if isinstance(response, httpx.Response):
-            response = response.json()
+            data = response.json()
+        elif isinstance(response, str):
+            data = json.loads(response)
+        elif isinstance(response, dict):
+            data = response
+        else:
+            raise ValueError(f"Unknown STT response type: {type(response)}")
 
-        if not isinstance(response, dict):
-            raise ValueError(f"Invalid STT response: {response}")
+        if "text" not in data:
+            raise ValueError(f"STT response missing text: {data}")
 
-        return response
+        return data
