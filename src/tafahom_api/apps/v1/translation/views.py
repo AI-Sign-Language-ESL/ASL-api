@@ -27,7 +27,6 @@ from tafahom_api.apps.v1.translation.services.streaming_translation_service impo
 )
 
 from rest_framework.views import APIView
-from rest_framework import status
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
 from asgiref.sync import async_to_sync
@@ -35,6 +34,46 @@ from asgiref.sync import async_to_sync
 # =====================================================
 # HELPERS
 # =====================================================
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
+class SpeechToTextView(APIView):
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        audio_file = request.FILES.get("file")
+
+        if not audio_file:
+            return Response(
+                {"error": "No audio file"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        client = SpeechToTextClient()
+
+        result = async_to_sync(client.speech_to_text)(audio_file)
+
+        # 🔥 HARD LOGGING
+        logger.error("RAW STT RESULT TYPE: %s", type(result))
+        logger.error("RAW STT RESULT VALUE: %s", result)
+
+        if not isinstance(result, dict):
+            return Response(
+                {"error": f"Invalid STT result: {result}"},
+                status=500,
+            )
+
+        text = result.get("text")
+
+        logger.error("EXTRACTED TEXT: %r", text)
+
+        return Response(
+            {"text": text or ""},
+            status=status.HTTP_200_OK,
+        )
 
 
 def _get_or_create_wallet(user):
@@ -224,34 +263,4 @@ class TranslateToSignView(generics.GenericAPIView):
                 "remaining_credits": subscription.remaining_credits(),
             },
             status=status.HTTP_201_CREATED,
-        )
-
-
-class SpeechToTextView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser]
-
-    def post(self, request):
-        audio_file = request.FILES.get("file")
-
-        if not audio_file:
-            return Response(
-                {"detail": "No audio file provided"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        client = SpeechToTextClient()
-
-        try:
-            result = async_to_sync(client.speech_to_text)(audio_file)
-        except Exception as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        # ✅ Modal already returns clean JSON
-        return Response(
-            {"text": result.get("text", "")},
-            status=status.HTTP_200_OK,
         )
