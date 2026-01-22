@@ -48,30 +48,44 @@ class SpeechToTextView(APIView):
 
         if not audio_file:
             return Response(
-                {"error": "No audio file"},
+                {"error": "No audio file provided"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         client = SpeechToTextClient()
 
-        result = async_to_sync(client.speech_to_text)(audio_file)
+        try:
+            # 🔥 CALL MODAL
+            result = async_to_sync(client.speech_to_text)(audio_file)
 
-        # 🔥 HARD LOGGING
+        except Exception as e:
+            logger.exception("STT CLIENT ERROR")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # 🔍 HARD LOGGING
         logger.error("RAW STT RESULT TYPE: %s", type(result))
         logger.error("RAW STT RESULT VALUE: %s", result)
 
         if not isinstance(result, dict):
             return Response(
                 {"error": f"Invalid STT result: {result}"},
-                status=500,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        # ✅ NORMALIZE OUTPUT
         text = result.get("text")
+        if isinstance(text, str):
+            text = text.strip()
+        else:
+            text = ""
 
-        logger.error("EXTRACTED TEXT: %r", text)
+        logger.error("FINAL EXTRACTED TEXT: %r", text)
 
         return Response(
-            {"text": text or ""},
+            {"text": text},
             status=status.HTTP_200_OK,
         )
 

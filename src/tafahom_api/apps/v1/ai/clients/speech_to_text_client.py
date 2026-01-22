@@ -8,13 +8,13 @@ class SpeechToTextClient(BaseAIClient):
     base_url = settings.AI_STT_BASE_URL
 
     async def speech_to_text(self, audio_file):
-        # 🔹 Write uploaded file to temp WAV
+        # 1️⃣ Write uploaded file to disk
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as raw:
             for chunk in audio_file.chunks():
                 raw.write(chunk)
             raw_path = raw.name
 
-        # 🔹 Convert & normalize
+        # 2️⃣ Normalize audio for Whisper
         with tempfile.NamedTemporaryFile(suffix=".wav") as fixed:
             subprocess.run(
                 [
@@ -23,11 +23,11 @@ class SpeechToTextClient(BaseAIClient):
                     "-i",
                     raw_path,
                     "-ac",
-                    "1",  # mono
+                    "1",
                     "-ar",
-                    "16000",  # 16kHz
+                    "16000",
                     "-sample_fmt",
-                    "s16",  # PCM16
+                    "s16",
                     fixed.name,
                 ],
                 check=True,
@@ -36,6 +36,14 @@ class SpeechToTextClient(BaseAIClient):
             )
 
             fixed.seek(0)
-            result = await self._post_file("/", files={"file": fixed})
 
-        return result
+            # 🔥 THIS IS THE CRITICAL LINE
+            result = await self._post_file(
+                "/predict",
+                files={"file": fixed},
+            )
+
+        # 3️⃣ GUARANTEE text extraction
+        text = result.get("text", "").strip()
+
+        return {"text": text}
