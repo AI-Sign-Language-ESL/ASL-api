@@ -1,11 +1,14 @@
 import asyncio
+import logging
 
-from rest_framework import status, generics
+from asgiref.sync import async_to_sync
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from rest_framework import generics, status
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from django.db import transaction
-from django.core.exceptions import ObjectDoesNotExist
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
 
 from .models import TranslationRequest, SignLanguageConfig
 from .serializers import (
@@ -15,31 +18,22 @@ from .serializers import (
     TranslationRequestListSerializer,
 )
 
+from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
-
 from tafahom_api.apps.v1.translation.services.sign_video_service import (
     generate_sign_video_from_gloss,
 )
-
 from tafahom_api.apps.v1.translation.services.streaming_translation_service import (
     TranslationPipelineService,
 )
 
-from rest_framework.views import APIView
-
-from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
-from asgiref.sync import async_to_sync
-
-# =====================================================
-# HELPERS
-# =====================================================
-import logging
-
-
 logger = logging.getLogger(__name__)
 
 
+# =====================================================
+# SPEECH → TEXT
+# =====================================================
 class SpeechToTextView(APIView):
     parser_classes = [MultiPartParser]
 
@@ -52,61 +46,55 @@ class SpeechToTextView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 🔥 HARD GUARD: reject silence / too short audio
+        # 🔒 Hard guard against silence / accidental taps
         if audio_file.size < 25_000:  # ~0.8s @ 16kHz PCM16
-            logger.error(
-                "STT: audio too small (%s bytes) — rejecting",
+            logger.warning(
+                "STT rejected: audio too small (%s bytes)",
                 audio_file.size,
             )
-            return Response(
-                {"text": ""},
-                status=status.HTTP_200_OK,
-            )
+            return Response({"text": ""}, status=status.HTTP_200_OK)
 
         client = SpeechToTextClient()
 
         try:
             result = async_to_sync(client.speech_to_text)(audio_file)
-        except Exception as e:
-            logger.exception("STT CLIENT ERROR")
+        except Exception as exc:
+            logger.exception("STT client failure")
             return Response(
-                {"error": str(e)},
+                {"error": str(exc)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        logger.error("RAW STT RESULT TYPE: %s", type(result))
-        logger.error("RAW STT RESULT VALUE: %s", result)
+        logger.info("RAW STT RESULT: %s", result)
 
         if not isinstance(result, dict):
+            logger.error("Invalid STT response type: %s", type(result))
             return Response(
-                {"error": f"Invalid STT result: {result}"},
+                {"error": "Invalid STT response"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        text = result.get("text", "")
-        if isinstance(text, str):
-            text = text.strip()
-        else:
-            text = ""
+        text = (result.get("text") or "").strip()
 
-        logger.error("FINAL EXTRACTED TEXT: %r", text)
+        if not text:
+            logger.error(
+                "STT returned EMPTY text — audio received but no transcript produced"
+            )
 
-        return Response(
-            {"text": text},
-            status=status.HTTP_200_OK,
-        )
+        return Response({"text": text}, status=status.HTTP_200_OK)
 
 
+# =====================================================
+# SUBSCRIPTION WALLET
+# =====================================================
 def _get_or_create_wallet(user):
-    """
-    Ensure the user has a subscription wallet.
-    """
     try:
         return user.subscription
     except ObjectDoesNotExist:
-        free_plan = SubscriptionPlan.objects.filter(plan_type="free").first()
-        if not free_plan:
-            free_plan = SubscriptionPlan.objects.filter(is_active=True).first()
+        free_plan = (
+            SubscriptionPlan.objects.filter(plan_type="free").first()
+            or SubscriptionPlan.objects.filter(is_active=True).first()
+        )
 
         if not free_plan:
             return None
@@ -122,32 +110,47 @@ def _get_or_create_wallet(user):
 
 
 # =====================================================
-# VIEWS
+# META VIEWS
 # =====================================================
-
-
 class SignLanguageListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = SignLanguageConfigSerializer
     queryset = SignLanguageConfig.objects.all().order_by("id")
 
 
-class TranslationRequestCreateView(generics.CreateAPIView):
-    """
-    Generic translation request creation (any direction).
-    """
+class MyTranslationRequestsView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TranslationRequestListSerializer
 
+    def get_queryset(self):
+        return TranslationRequest.objects.filter(user=self.request.user).order_by(
+            "-created_at"
+        )
+
+
+class TranslationStatusView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TranslationRequestStatusSerializer
+    queryset = TranslationRequest.objects.all()
+
+    def get_queryset(self):
+        return super().get_queryset().filter(user=self.request.user)
+
+
+# =====================================================
+# TRANSLATION REQUEST CREATION
+# =====================================================
+class TranslationRequestCreateView(generics.CreateAPIView):
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
 
     def post(self, request, *args, **kwargs):
         subscription = _get_or_create_wallet(request.user)
+
         if not subscription:
             return Response(
-                {
-                    "detail": "System Configuration Error: No subscription plans available."
-                },
+                {"detail": "System Configuration Error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -178,51 +181,16 @@ class TranslationRequestCreateView(generics.CreateAPIView):
         )
 
 
-class MyTranslationRequestsView(generics.ListAPIView):
-    """
-    List translation history for the authenticated user.
-    """
-
-    permission_classes = [IsAuthenticated]
-    serializer_class = TranslationRequestListSerializer
-
-    def get_queryset(self):
-        return TranslationRequest.objects.filter(user=self.request.user).order_by(
-            "-created_at"
-        )
-
-
-class TranslationStatusView(generics.RetrieveAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = TranslationRequestStatusSerializer
-    queryset = TranslationRequest.objects.all()
-
-    def get_queryset(self):
-        return super().get_queryset().filter(user=self.request.user)
-
-
 # =====================================================
 # TEXT → SIGN (VIDEO)
 # =====================================================
-
-
 class TranslateToSignView(generics.GenericAPIView):
-    """
-    Text → Sign Language (Video).
-
-    Pipeline:
-    Text
-    → Arabic Gloss AI (text_to_gloss)
-    → Arabic gloss tokens
-    → Gloss → Video mapping
-    → FFmpeg
-    """
-
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
 
     def post(self, request):
         subscription = _get_or_create_wallet(request.user)
+
         if not subscription:
             return Response(
                 {"detail": "System Configuration Error"},
@@ -240,35 +208,26 @@ class TranslateToSignView(generics.GenericAPIView):
 
         text = serializer.validated_data.get("text")
 
-        # -------------------------------------------------
-        # 1️⃣ AI: Text → Arabic Gloss
-        # -------------------------------------------------
         try:
             ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
             gloss_tokens = ai_result.get("gloss")
         except Exception:
+            logger.exception("Text → Gloss failed")
             return Response(
-                {"detail": "Failed to generate gloss from text"},
+                {"detail": "Failed to generate gloss"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # -------------------------------------------------
-        # 2️⃣ Gloss → Sign Video (FFmpeg)
-        # -------------------------------------------------
         try:
             video_url = generate_sign_video_from_gloss(gloss_tokens)
-        except ValueError as e:
+        except ValueError as exc:
             return Response(
-                {"detail": str(e)},
+                {"detail": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # -------------------------------------------------
-        # 3️⃣ Save + Consume Credit
-        # -------------------------------------------------
         with transaction.atomic():
             consume_translation_credit(subscription)
-
             translation = serializer.save(
                 user=request.user,
                 direction="to_sign",
