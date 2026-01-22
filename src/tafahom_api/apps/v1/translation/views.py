@@ -259,7 +259,7 @@ class TranslateToSignView(generics.GenericAPIView):
                 direction="to_sign",
                 status="completed",
                 input_text=text,
-                output_url=video_url,
+                output_video=video_url,
             )
 
         return Response(
