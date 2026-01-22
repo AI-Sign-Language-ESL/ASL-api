@@ -8,34 +8,43 @@ class SpeechToTextClient(BaseAIClient):
     base_url = settings.AI_STT_BASE_URL
 
     async def speech_to_text(self, audio_file):
-        # Convert incoming upload to REAL wav file
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as fixed:
+        # 1️⃣ Write uploaded audio bytes to temp file
+        with tempfile.NamedTemporaryFile(suffix=".input", delete=False) as raw:
+            raw.write(audio_file.read())
+            raw.flush()
+            raw_path = raw.name
 
-            input_path = audio_file.file.name if hasattr(audio_file, "file") else None
-
+        # 2️⃣ Convert to clean WAV (PCM16, mono, 16kHz)
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav:
             subprocess.run(
                 [
                     "ffmpeg",
                     "-y",
                     "-i",
-                    input_path or "/dev/stdin",
+                    raw_path,
                     "-ac",
                     "1",
                     "-ar",
                     "16000",
                     "-sample_fmt",
                     "s16",
-                    fixed.name,
+                    wav.name,
                 ],
-                stdin=audio_file.file,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=True,
             )
+            wav_path = wav.name
 
-        # 🔥 SEND WITH EXPLICIT FILENAME + MIME TYPE
-        with open(fixed.name, "rb") as wav:
+        # 3️⃣ Send WAV bytes properly
+        with open(wav_path, "rb") as f:
             return await self._post_file(
                 "/",
-                files={"file": ("audio.wav", wav, "audio/wav")},
+                files={
+                    "file": (
+                        "audio.wav",  # ✅ filename REQUIRED
+                        f,  # ✅ bytes
+                        "audio/wav",  # ✅ MIME type
+                    )
+                },
             )
