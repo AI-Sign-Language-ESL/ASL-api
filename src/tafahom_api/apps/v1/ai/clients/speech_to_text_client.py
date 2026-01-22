@@ -1,4 +1,5 @@
-import httpx
+import tempfile
+import subprocess
 from django.conf import settings
 from .base import BaseAIClient
 
@@ -7,20 +8,30 @@ class SpeechToTextClient(BaseAIClient):
     base_url = settings.AI_STT_BASE_URL
 
     async def speech_to_text(self, audio_file):
-        filename = getattr(audio_file, "name", "")
-        if not filename.lower().endswith(".wav"):
-            raise ValueError("Speech-to-text only accepts .wav audio files")
+        # 🔥 FORCE CORRECT FORMAT
+        with tempfile.NamedTemporaryFile(suffix=".wav") as fixed:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    audio_file.temporary_file_path(),
+                    "-ac",
+                    "1",  # mono
+                    "-ar",
+                    "16000",  # 16kHz
+                    "-sample_fmt",
+                    "s16",  # PCM16
+                    fixed.name,
+                ],
+                check=True,
+            )
 
-        response = await self._post_file("/predict", files={"file": audio_file})
+            fixed.seek(0)
 
-        # 🔥 FIX: modal returns {"text": "..."}
-        if isinstance(response, dict) and "text" in response:
-            return response
+            result = await self._post_file("/", files={"file": fixed})
 
-        # fallback if modal root endpoint is used
-        response = await self._post_file("/", files={"file": audio_file})
+        if "text" not in result:
+            raise ValueError(result)
 
-        if isinstance(response, dict) and "text" in response:
-            return response
-
-        raise ValueError(f"Invalid STT response: {response}")
+        return result
