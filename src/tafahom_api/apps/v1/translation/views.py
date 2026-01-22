@@ -27,6 +27,7 @@ from tafahom_api.apps.v1.translation.services.sign_video_service import (
 from tafahom_api.apps.v1.translation.services.streaming_translation_service import (
     TranslationPipelineService,
 )
+from tafahom_api.apps.v1.translation.serializers import TextToSignSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -184,13 +185,24 @@ class TranslationRequestCreateView(generics.CreateAPIView):
 # =====================================================
 # TEXT → SIGN (VIDEO)
 # =====================================================
+
+
 class TranslateToSignView(generics.GenericAPIView):
+    """
+    Text → Sign Language (Video)
+
+    Pipeline:
+    Arabic Text
+    → Text-to-Gloss AI
+    → Gloss tokens
+    → Gloss → Video
+    """
+
     permission_classes = [IsAuthenticated]
-    serializer_class = TranslationRequestCreateSerializer
+    serializer_class = TextToSignSerializer
 
     def post(self, request):
         subscription = _get_or_create_wallet(request.user)
-
         if not subscription:
             return Response(
                 {"detail": "System Configuration Error"},
@@ -206,32 +218,47 @@ class TranslateToSignView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        text = serializer.validated_data.get("text")
+        text = serializer.validated_data["text"]
 
+        # -------------------------------------------------
+        # 1️⃣ Text → Gloss (AI)
+        # -------------------------------------------------
         try:
             ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
             gloss_tokens = ai_result.get("gloss")
-        except Exception:
-            logger.exception("Text → Gloss failed")
+
+            if not gloss_tokens:
+                raise ValueError("Empty gloss result")
+
+        except Exception as e:
+            logger.exception("TEXT → GLOSS FAILED")
             return Response(
-                {"detail": "Failed to generate gloss"},
+                {"detail": "Failed to generate gloss from text"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        # -------------------------------------------------
+        # 2️⃣ Gloss → Sign Video
+        # -------------------------------------------------
         try:
             video_url = generate_sign_video_from_gloss(gloss_tokens)
-        except ValueError as exc:
+        except ValueError as e:
             return Response(
-                {"detail": str(exc)},
+                {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # -------------------------------------------------
+        # 3️⃣ Save + Consume Credit
+        # -------------------------------------------------
         with transaction.atomic():
             consume_translation_credit(subscription)
-            translation = serializer.save(
+
+            translation = TranslationRequest.objects.create(
                 user=request.user,
                 direction="to_sign",
                 status="completed",
+                input_text=text,
                 output_url=video_url,
             )
 

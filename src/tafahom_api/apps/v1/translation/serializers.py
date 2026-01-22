@@ -80,5 +80,11 @@ class TranslationRequestStatusSerializer(serializers.ModelSerializer):
 
 
 # 🔥 DEDICATED TEXT → SIGN SERIALIZER
+
+
 class TextToSignSerializer(serializers.Serializer):
-    text = serializers.CharField(required=True, allow_blank=False)
+    text = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
