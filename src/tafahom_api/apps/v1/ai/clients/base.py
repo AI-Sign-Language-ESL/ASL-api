@@ -10,10 +10,15 @@ class BaseAIClient:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(url, files=files)
 
-        response.raise_for_status()
+        # ❌ DO NOT raise here — let caller handle fallbacks
+        if response.status_code >= 500:
+            response.raise_for_status()
 
-        # 🔥 CRITICAL: RETURN FULL JSON, NOT TEXT, NOT PARTIAL
         try:
             return response.json()
         except Exception:
-            raise ValueError(f"Invalid JSON from AI service: {response.text}")
+            return {
+                "error": "invalid_json",
+                "raw": response.text,
+                "status": response.status_code,
+            }
