@@ -12,4 +12,4 @@ class TextToGlossClient(BaseAIClient):
 
         payload = {"prompt": text.strip()}  # ✅ REQUIRED BY MODEL
 
-        return await self._post_json("/generate", payload)
+        return await self._post_file("/generate", payload)
