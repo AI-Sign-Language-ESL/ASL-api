@@ -8,14 +8,20 @@ class SpeechToTextClient(BaseAIClient):
     base_url = settings.AI_STT_BASE_URL
 
     async def speech_to_text(self, audio_file):
-        # 🔥 FORCE CORRECT FORMAT
+        # 🔹 Write uploaded file to temp WAV
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as raw:
+            for chunk in audio_file.chunks():
+                raw.write(chunk)
+            raw_path = raw.name
+
+        # 🔹 Convert & normalize
         with tempfile.NamedTemporaryFile(suffix=".wav") as fixed:
             subprocess.run(
                 [
                     "ffmpeg",
                     "-y",
                     "-i",
-                    audio_file.temporary_file_path(),
+                    raw_path,
                     "-ac",
                     "1",  # mono
                     "-ar",
@@ -25,13 +31,11 @@ class SpeechToTextClient(BaseAIClient):
                     fixed.name,
                 ],
                 check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
             fixed.seek(0)
-
             result = await self._post_file("/", files={"file": fixed})
-
-        if "text" not in result:
-            raise ValueError(result)
 
         return result
