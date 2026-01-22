@@ -29,3 +29,28 @@ class BaseAIClient:
                 "raw": response.text,
                 "status": response.status_code,
             }
+
+    async def _post_json(self, path: str, json: dict):
+        """
+        Send application/json (used for NLP text models).
+        """
+        url = f"{self.base_url}{path}"
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                url,
+                json=json,
+                headers={"Content-Type": "application/json"},
+            )
+
+        if response.status_code >= 500:
+            response.raise_for_status()
+
+        try:
+            return response.json()
+        except Exception:
+            return {
+                "error": "invalid_json",
+                "raw": response.text,
+                "status": response.status_code,
+            }
