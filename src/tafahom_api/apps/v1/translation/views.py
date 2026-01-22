@@ -52,12 +52,21 @@ class SpeechToTextView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # 🔥 HARD GUARD: reject silence / too short audio
+        if audio_file.size < 25_000:  # ~0.8s @ 16kHz PCM16
+            logger.error(
+                "STT: audio too small (%s bytes) — rejecting",
+                audio_file.size,
+            )
+            return Response(
+                {"text": ""},
+                status=status.HTTP_200_OK,
+            )
+
         client = SpeechToTextClient()
 
         try:
-            # 🔥 CALL MODAL
             result = async_to_sync(client.speech_to_text)(audio_file)
-
         except Exception as e:
             logger.exception("STT CLIENT ERROR")
             return Response(
@@ -65,7 +74,6 @@ class SpeechToTextView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # 🔍 HARD LOGGING
         logger.error("RAW STT RESULT TYPE: %s", type(result))
         logger.error("RAW STT RESULT VALUE: %s", result)
 
@@ -75,8 +83,7 @@ class SpeechToTextView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # ✅ NORMALIZE OUTPUT
-        text = result.get("text")
+        text = result.get("text", "")
         if isinstance(text, str):
             text = text.strip()
         else:
