@@ -3,6 +3,8 @@ import subprocess
 from django.conf import settings
 from .base import BaseAIClient
 
+import os
+
 
 class SpeechToTextClient(BaseAIClient):
     base_url = settings.AI_STT_BASE_URL
@@ -35,6 +37,7 @@ class SpeechToTextClient(BaseAIClient):
                 check=True,
             )
             wav_path = wav.name
+            print("FINAL WAV SIZE:", os.path.getsize(wav_path))
 
         # 3️⃣ Send WAV bytes properly
         with open(wav_path, "rb") as f:
