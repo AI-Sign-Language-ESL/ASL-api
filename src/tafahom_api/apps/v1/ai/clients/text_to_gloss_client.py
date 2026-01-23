@@ -1,4 +1,3 @@
-# text_to_gloss_client.py
 from django.conf import settings
 from .base import BaseAIClient
 
@@ -10,6 +9,6 @@ class TextToGlossClient(BaseAIClient):
         if not text or not text.strip():
             raise ValueError("Text is empty")
 
-        payload = {"prompt": text.strip()}  # ✅ REQUIRED BY MODEL
+        payload = {"prompt": text.strip()}  # REQUIRED
 
-        return await self._post_file("/generate", payload)
+        return await self._post_json("/generate", json=payload)
