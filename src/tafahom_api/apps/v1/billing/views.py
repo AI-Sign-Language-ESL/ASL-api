@@ -1,17 +1,20 @@
+from datetime import timedelta
+
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
+
 from drf_spectacular.utils import extend_schema
-from rest_framework.permissions import AllowAny
-from django.utils import timezone
-from datetime import timedelta
 
 from . import models, serializers
 
 
 class SubscriptionPlanListView(generics.ListAPIView):
     serializer_class = serializers.SubscriptionPlanSerializer
-    pagination_class = None  # ✅ disable pagination
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
     def get_queryset(self):
         return models.SubscriptionPlan.objects.filter(is_active=True)
@@ -22,10 +25,9 @@ class MySubscriptionView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        try:
-            return self.request.user.subscription
-        except models.Subscription.DoesNotExist:
-            pass
+        subscription = getattr(self.request.user, "subscription", None)
+        if subscription:
+            return subscription
 
         free_plan = models.SubscriptionPlan.objects.filter(
             plan_type="free",
@@ -56,6 +58,7 @@ class SubscribeView(generics.CreateAPIView):
         plan = get_object_or_404(
             models.SubscriptionPlan,
             id=serializer.validated_data["plan_id"],
+            is_active=True,
         )
 
         billing_period = serializer.validated_data["billing_period"]
@@ -65,7 +68,7 @@ class SubscribeView(generics.CreateAPIView):
         )
 
         subscription, _ = models.Subscription.objects.update_or_create(
-            user=self.request.user,
+            user=request.user,
             defaults={
                 "plan": plan,
                 "billing_period": billing_period,
@@ -85,17 +88,42 @@ class CancelSubscriptionView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        try:
-            subscription = request.user.subscription
-            subscription.status = "cancelled"
-            subscription.save(update_fields=["status"])
-        except models.Subscription.DoesNotExist:
+        subscription = getattr(request.user, "subscription", None)
+
+        if not subscription:
             return Response(
                 {"detail": "No active subscription found."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        subscription.status = "cancelled"
+        subscription.save(update_fields=["status"])
+
         return Response(
             {"message": "Subscription cancelled"},
             status=status.HTTP_200_OK,
         )
+
+
+class MyCreditsView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = serializers.UserCreditsSerializer
+
+    def get(self, request):
+        subscription = getattr(request.user, "subscription", None)
+
+        if not subscription:
+            return Response(
+                {"detail": "No active subscription found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        data = {
+            "total_credits": subscription.total_credits(),
+            "credits_used": subscription.credits_used,
+            "bonus_credits": subscription.bonus_credits,
+            "remaining_credits": subscription.remaining_credits(),
+            "can_consume": subscription.can_consume(),
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
