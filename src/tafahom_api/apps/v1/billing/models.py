@@ -2,6 +2,8 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
+
 
 from tafahom_api.common.enums import (
     PLAN_TYPES,
@@ -20,7 +22,7 @@ class SubscriptionPlan(models.Model):
     )
 
     credits_per_month = models.PositiveIntegerField(default=50)
-    price = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
     is_active = models.BooleanField(default=True)
 
     class Meta:
