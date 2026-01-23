@@ -225,16 +225,11 @@ class TranslateToSignView(generics.GenericAPIView):
         # -------------------------------------------------
         try:
             ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
-            gloss_tokens = ai_result.get("gloss")
-
-            if not gloss_tokens:
-                raise ValueError("Empty gloss result")
-
-        except Exception as e:
-            logger.exception("TEXT → GLOSS FAILED")
+            gloss_tokens = ai_result["gloss"]
+        except ValueError as e:
             return Response(
-                {"detail": "Failed to generate gloss from text"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # -------------------------------------------------
