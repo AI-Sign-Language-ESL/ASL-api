@@ -2,11 +2,8 @@ import json
 import time
 import logging
 from collections import deque
-from urllib.parse import parse_qs
 
-from channels.generic.websocket import AsyncJsonWebsocketConsumer
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework_simplejwt.exceptions import InvalidToken
+from channels.generic.websocket import AsyncWebsocketConsumer
 
 from .services.streaming_translation_service import StreamingTranslationService
 from .config import (
@@ -24,40 +21,40 @@ from .config import (
 logger = logging.getLogger(__name__)
 
 
-class SignTranslationConsumer(AsyncJsonWebsocketConsumer):
+class SignTranslationConsumer(AsyncWebsocketConsumer):
     """
-    WebSocket transport layer ONLY.
-    No business logic.
+    WebSocket TRANSPORT layer only.
+
+    - Authentication handled by JWTAuthMiddleware
+    - Supports binary frames
+    - JSON helpers implemented explicitly
     """
+
+    # --------------------------------------------------
+    # JSON HELPER (FIXES PYLANCE)
+    # --------------------------------------------------
+    async def send_json(self, content: dict):
+        await self.send(text_data=json.dumps(content))
 
     async def connect(self):
         # -----------------------------
-        # JWT authentication
+        # AUTH (FROM JWT MIDDLEWARE)
         # -----------------------------
-        self.user = None
+        self.user = self.scope.get("user")
 
-        query_string = self.scope.get("query_string", b"").decode()
-        params = parse_qs(query_string)
-        token = params.get("token", [None])[0]
-
-        if token:
-            try:
-                validated_token = JWTAuthentication().get_validated_token(token)
-                self.user = JWTAuthentication().get_user(validated_token)
-            except InvalidToken:
-                await self.close(code=4001)
-                return
-        else:
-            self.user = self.scope.get("user")
-
-        if not self.user or self.user.is_anonymous:
+        if not self.user or getattr(self.user, "is_anonymous", True):
             await self.close(code=4001)
             return
 
+        # -----------------------------
+        # RATE / LIFETIME TRACKING
+        # -----------------------------
         self.message_times = deque()
         self.connection_start_time = time.time()
 
-        # Injecting dependencies into the service
+        # -----------------------------
+        # STREAMING SERVICE
+        # -----------------------------
         self.service = StreamingTranslationService(
             user=self.user,
             send_json=self.send_json,
@@ -93,11 +90,16 @@ class SignTranslationConsumer(AsyncJsonWebsocketConsumer):
         if not text_data and not bytes_data:
             return
 
-        # Security Checks
+        # -----------------------------
+        # CONNECTION LIFETIME
+        # -----------------------------
         if time.time() - self.connection_start_time > WS_MAX_CONNECTION_TIME:
             await self.close(code=4009)
             return
 
+        # -----------------------------
+        # RATE LIMITING
+        # -----------------------------
         now = time.time()
         self.message_times.append(now)
         while self.message_times and now - self.message_times[0] > 1:
@@ -107,7 +109,9 @@ class SignTranslationConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4008)
             return
 
-        # Binary frames (Video)
+        # -----------------------------
+        # BINARY FRAMES
+        # -----------------------------
         if bytes_data:
             try:
                 await self.service.on_frame(bytes_data)
@@ -118,10 +122,16 @@ class SignTranslationConsumer(AsyncJsonWebsocketConsumer):
                 )
             return
 
-        # JSON messages (Control)
+        # -----------------------------
+        # JSON CONTROL MESSAGES
+        # -----------------------------
+        # JSON CONTROL MESSAGES
+        if text_data is None:
+            return
+
         try:
             data = json.loads(text_data)
-        except Exception:
+        except json.JSONDecodeError:
             await self.send_json({"type": "error", "message": "Invalid JSON"})
             return
 
@@ -134,7 +144,6 @@ class SignTranslationConsumer(AsyncJsonWebsocketConsumer):
 
         try:
             if action == "start":
-                # Default to text if not provided
                 output_type = data.get("output_type", "text")
                 await self.service.start_translation(output_type)
 
