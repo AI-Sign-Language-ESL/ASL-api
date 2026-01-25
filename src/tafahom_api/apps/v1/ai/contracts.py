@@ -2,26 +2,28 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 
-# ---------------------------
-# COMPUTER VISION
-# ---------------------------
+# =====================================================
+# COMPUTER VISION (SIGN → GLOSS)
+# =====================================================
+
 
 @dataclass
 class CVRequest:
-    frames: List[str]           # base64-encoded frames
+    frames: List[str]  # base64-encoded JPEG frames
     fps: int = 30
-    language: str = "ase"
+    language: str = "ase"  # Arabic Sign Language
 
 
 @dataclass
 class CVResponse:
-    gloss: List[str]
-    confidence: float
+    gloss: List[str]  # e.g. ["HELLO", "YOU"]
+    confidence: Optional[float] = None
 
 
-# ---------------------------
-# NLP
-# ---------------------------
+# =====================================================
+# NLP (GLOSS → TEXT)
+# =====================================================
+
 
 @dataclass
 class NLPRequest:
@@ -31,13 +33,14 @@ class NLPRequest:
 
 @dataclass
 class NLPResponse:
-    text: str
+    text: str  # e.g. "مرحبا"
     confidence: Optional[float] = None
 
 
-# ---------------------------
-# SPEECH
-# ---------------------------
+# =====================================================
+# SPEECH (TEXT → VOICE)
+# =====================================================
+
 
 @dataclass
 class SpeechRequest:
@@ -48,5 +51,5 @@ class SpeechRequest:
 
 @dataclass
 class SpeechResponse:
-    audio_url: str               # or base64 audio if needed
+    audio_base64: str  # 🔥 FIXED: base64-encoded audio (NOT URL)
     duration_ms: Optional[int] = None

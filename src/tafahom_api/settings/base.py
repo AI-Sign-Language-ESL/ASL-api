@@ -52,7 +52,7 @@ SECURE_HSTS_SECONDS = 3600 if ENVIRONMENT == "PROD" else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = ENVIRONMENT == "PROD"
 SECURE_HSTS_PRELOAD = ENVIRONMENT == "PROD"
 SECURE_SSL_REDIRECT = ENVIRONMENT == "PROD"
-
+CHANNELS_ALLOWED_HOSTS = ALLOWED_HOSTS
 # =============================================================================
 # APPLICATIONS
 # =============================================================================

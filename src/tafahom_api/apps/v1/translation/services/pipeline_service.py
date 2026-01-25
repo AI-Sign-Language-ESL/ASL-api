@@ -57,10 +57,6 @@ class TranslationPipelineService:
     # -------------------------------------------------
     @staticmethod
     def _extract_gloss(nlp_resp: Dict[str, Any]) -> List[str]:
-        """
-        Convert NLP output into SIGN_MAP-compatible gloss tokens.
-        """
-
         raw = (
             nlp_resp.get("gloss_translation")
             or nlp_resp.get("gloss")
@@ -84,17 +80,19 @@ class TranslationPipelineService:
             if mapped and mapped in SIGN_MAP:
                 resolved.append(mapped)
 
-        # 🚫 CRITICAL FIX — NO FALLBACK
         if not resolved:
             raise ValueError(f"No supported sign tokens found for input: {raw}")
 
         return resolved
 
     # =================================================
-    # TEXT → SIGN
+    # TEXT → SIGN (HTTP)
     # =================================================
     @classmethod
     async def text_to_sign(cls, text: str) -> Dict[str, Any]:
+        if not text or not text.strip():
+            raise RuntimeError("Text must not be empty")
+
         request_id = str(uuid.uuid4())
         start = time.perf_counter()
 
@@ -120,7 +118,7 @@ class TranslationPipelineService:
         }
 
     # =================================================
-    # VOICE → SIGN
+    # VOICE → SIGN (HTTP)
     # =================================================
     @classmethod
     async def voice_to_sign(cls, uploaded_file) -> Dict[str, Any]:
@@ -133,7 +131,7 @@ class TranslationPipelineService:
 
         text = stt_resp.get("text")
         if not text:
-            raise ValueError("STT returned empty text")
+            raise RuntimeError("STT returned empty text")
 
         nlp_resp = await cls._with_timeout(
             cls._text_to_gloss_client.text_to_gloss(text)
@@ -155,4 +153,75 @@ class TranslationPipelineService:
             "text": text,
             "gloss": gloss,
             "video": video_url,
+        }
+
+    # =================================================
+    # SIGN → TEXT (WebSocket)
+    # =================================================
+    @classmethod
+    async def sign_to_text(cls, frames: List[str]) -> Dict[str, Any]:
+        request_id = str(uuid.uuid4())
+        start = time.perf_counter()
+
+        cv_resp = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+
+        gloss = cv_resp.get("gloss")
+        if not gloss:
+            raise RuntimeError("CV returned empty gloss")
+
+        nlp_resp = await cls._with_timeout(
+            cls._gloss_to_text_client.gloss_to_text(gloss)
+        )
+
+        text = nlp_resp.get("text")
+        if not text:
+            raise RuntimeError("NLP returned empty text")
+
+        logger.info(
+            "sign_to_text_success",
+            extra={
+                "request_id": request_id,
+                "gloss": gloss,
+                "duration_ms": (time.perf_counter() - start) * 1000,
+            },
+        )
+
+        return {"text": text}
+
+    # =================================================
+    # SIGN → VOICE (WebSocket)
+    # =================================================
+    @classmethod
+    async def sign_to_voice(cls, frames: List[str]) -> Dict[str, Any]:
+        request_id = str(uuid.uuid4())
+        start = time.perf_counter()
+
+        cv_resp = await cls._with_timeout(cls._cv_client.sign_to_gloss(frames))
+
+        gloss = cv_resp.get("gloss")
+        if not gloss:
+            raise RuntimeError("CV returned empty gloss")
+
+        nlp_resp = await cls._with_timeout(
+            cls._gloss_to_text_client.gloss_to_text(gloss)
+        )
+
+        text = nlp_resp.get("text")
+        if not text:
+            raise RuntimeError("NLP returned empty text")
+
+        audio = await cls._with_timeout(cls._tts_client.text_to_speech(text))
+
+        logger.info(
+            "sign_to_voice_success",
+            extra={
+                "request_id": request_id,
+                "gloss": gloss,
+                "duration_ms": (time.perf_counter() - start) * 1000,
+            },
+        )
+
+        return {
+            "text": text,
+            "audio": audio,
         }

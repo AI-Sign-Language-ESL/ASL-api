@@ -1,26 +1,46 @@
+# ------------------------------
+# Base image
+# ------------------------------
 FROM python:3.11-slim
 
+# ------------------------------
+# Environment
+# ------------------------------
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app/src
 
+# ------------------------------
 # System dependencies
+# ------------------------------
 RUN apt-get update && apt-get install -y \
+    ffmpeg \
     build-essential \
     libpq-dev \
-    curl \
-    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# App directory
-WORKDIR /app/src
+# ------------------------------
+# Work directory
+# ------------------------------
+WORKDIR /app
 
+# ------------------------------
 # Install Python dependencies
-COPY req.txt /app/
-RUN pip install --upgrade pip && pip install -r /app/req.txt
+# ------------------------------
+COPY req.txt /app/req.txt
+RUN pip install --upgrade pip && \
+    pip install -r req.txt
 
+# ------------------------------
 # Copy project
-COPY src/ /app/src/
+# ------------------------------
+COPY . /app
 
-# Default command (overridden by docker-compose)
+# ------------------------------
+# Expose port
+# ------------------------------
+EXPOSE 8000
+
+# ------------------------------
+# Run ASGI server (WebSocket ✅)
+# ------------------------------
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "tafahom_api.asgi:application"]

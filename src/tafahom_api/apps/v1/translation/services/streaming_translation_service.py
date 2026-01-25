@@ -3,13 +3,13 @@ import time
 import asyncio
 import uuid
 import logging
+import base64
 from collections import deque
 from typing import List
 
 from django.utils import timezone
 from channels.db import database_sync_to_async
 
-# Import the Pipeline Service we fixed above
 from .pipeline_service import TranslationPipelineService
 from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
@@ -19,7 +19,12 @@ logger = logging.getLogger(__name__)
 class StreamingTranslationService:
     """
     Stateful Logic for WebSocket Streaming.
-    Buffers frames, manages AI loop, handles billing.
+
+    Flow:
+    - Stream TEXT only while user is signing
+    - Buffer frames
+    - Every SEND_INTERVAL → CV → gloss → text
+    - When user stops → generate VOICE ONCE
     """
 
     def __init__(self, *, user, send_json, close_ws, config):
@@ -35,7 +40,6 @@ class StreamingTranslationService:
         self.buffer_lock = asyncio.Lock()
 
         self.translation = None
-        self.output_type = "text"
         self.running = False
         self.closed = False
 
@@ -46,6 +50,10 @@ class StreamingTranslationService:
         self.last_sent = time.time()
 
         self.task: asyncio.Task | None = None
+
+    # --------------------------------------------------
+    # LIFECYCLE
+    # --------------------------------------------------
 
     async def start(self):
         """Called on WS connect"""
@@ -66,11 +74,14 @@ class StreamingTranslationService:
 
         self.frame_buffer.clear()
 
+    # --------------------------------------------------
+    # FRAME / HEARTBEAT
+    # --------------------------------------------------
+
     async def on_frame(self, frame: bytes):
         if not self.running:
             return
 
-        # Fast append, minimal logic here
         async with self.buffer_lock:
             if len(self.frame_buffer) >= self.config["MAX_BUFFER_SIZE"]:
                 return
@@ -80,9 +91,9 @@ class StreamingTranslationService:
         self.last_heartbeat = time.time()
         await self.send_json({"type": "pong"})
 
-    # -----------------------------------------------------
+    # --------------------------------------------------
     # SESSION MANAGEMENT
-    # -----------------------------------------------------
+    # --------------------------------------------------
 
     async def start_translation(self, output_type: str):
         if self.running:
@@ -93,7 +104,6 @@ class StreamingTranslationService:
             await self.close_ws(code=4011)
             return
 
-        # Async DB Check
         subscription = getattr(self.user, "subscription", None)
         has_credit = await database_sync_to_async(
             lambda: subscription and subscription.can_consume(1)
@@ -104,10 +114,13 @@ class StreamingTranslationService:
             return
 
         await self._consume_credit(subscription)
-        self.translation = await self._create_translation(output_type)
+
+        # 🔥 IMPORTANT:
+        # We ALWAYS stream TEXT.
+        # Voice is generated ONLY after STOP.
+        self.translation = await self._create_translation("text")
 
         self.requests_count += 1
-        self.output_type = output_type
         self.running = True
         self.last_sent = time.time()
         self.partial_text_buffer.clear()
@@ -123,7 +136,7 @@ class StreamingTranslationService:
             }
         )
 
-    async def stop_translation(self, reason="unknown"):
+    async def stop_translation(self, reason="client"):
         if not self.running:
             return
 
@@ -135,17 +148,15 @@ class StreamingTranslationService:
         await self._finalize_translation()
         await self.send_json({"type": "status", "status": "stopped"})
 
-    # -----------------------------------------------------
-    # MAIN LOOP
-    # -----------------------------------------------------
+    # --------------------------------------------------
+    # MAIN AI LOOP
+    # --------------------------------------------------
 
     async def _ai_loop(self):
         try:
             while not self.closed:
-                # Polling interval (100ms)
                 await asyncio.sleep(0.1)
 
-                # Timeouts / Zombie checks
                 if (
                     time.time() - self.connection_started_at
                     > self.config["WS_MAX_CONNECTION_TIME"]
@@ -157,14 +168,12 @@ class StreamingTranslationService:
                     await self.close_ws(code=4010)
                     return
 
-                # Skip if not translating or too early
                 if not self.running:
                     continue
 
                 if time.time() - self.last_sent < self.config["SEND_INTERVAL"]:
                     continue
 
-                # Buffer Extraction
                 async with self.buffer_lock:
                     if not self.frame_buffer:
                         continue
@@ -177,7 +186,6 @@ class StreamingTranslationService:
                     )
                     continue
 
-                # AI Processing
                 await self._process_batch(frames)
                 self.last_sent = time.time()
 
@@ -190,54 +198,61 @@ class StreamingTranslationService:
             )
             await self.close_ws(code=1011)
 
+    # --------------------------------------------------
+    # AI BATCH PROCESSING (TEXT ONLY)
+    # --------------------------------------------------
+
     async def _process_batch(self, frames: List[bytes]):
         try:
-            if self.output_type == "text":
-                # Returns: {'text': 'Hello'}
-                response = await asyncio.wait_for(
-                    TranslationPipelineService.sign_to_text(frames),
-                    timeout=self.config["PIPELINE_TIMEOUT_SECONDS"],
-                )
+            # 🔑 Convert frames to base64 (CV API requirement)
+            encoded_frames = [
+                base64.b64encode(frame).decode("utf-8") for frame in frames
+            ]
 
-                # FIX: Extract the text string from the dictionary
-                text = response.get("text")
-                if text:
-                    self.partial_text_buffer.append(text)
-                    await self.send_json({"type": "partial_result", "text": text})
+            response = await asyncio.wait_for(
+                TranslationPipelineService.sign_to_text(encoded_frames),
+                timeout=self.config["PIPELINE_TIMEOUT_SECONDS"],
+            )
 
-            else:
-                # Returns: {'text': 'Hello', 'audio': '...'}
-                result = await asyncio.wait_for(
-                    TranslationPipelineService.sign_to_voice(frames),
-                    timeout=self.config["PIPELINE_TIMEOUT_SECONDS"],
-                )
-
-                if result and result.get("text"):
-                    self.partial_text_buffer.append(result["text"])
-                    await self.send_json(
-                        {
-                            "type": "partial_result",
-                            "text": result["text"],
-                            "audio": result.get("audio"),
-                        }
-                    )
+            text = response.get("text")
+            if text:
+                self.partial_text_buffer.append(text)
+                await self.send_json({"type": "partial_result", "text": text})
 
         except asyncio.TimeoutError:
             await self.send_json(
                 {"type": "warning", "message": "Poor connection, retrying..."}
             )
-
         except Exception:
             logger.exception("pipeline_failure")
             await self.send_json(
                 {"type": "error", "message": "AI service temporary error"}
             )
 
+    # --------------------------------------------------
+    # FINALIZATION (VOICE GENERATED HERE)
+    # --------------------------------------------------
+
     async def _finalize_translation(self):
         if not self.translation:
             return
 
-        final_text = " ".join(self.partial_text_buffer)
+        final_text = " ".join(self.partial_text_buffer).strip()
+
+        audio_base64 = None
+
+        # 🔊 Generate voice ONCE after user finishes signing
+        if final_text:
+            try:
+                audio_bytes = (
+                    await TranslationPipelineService._tts_client.text_to_speech(
+                        final_text
+                    )
+                )
+                if audio_bytes:
+                    audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+            except Exception:
+                logger.exception("TTS failed")
 
         await self._update_translation(
             output_text=final_text,
@@ -245,9 +260,19 @@ class StreamingTranslationService:
             completed_at=timezone.now(),
         )
 
-    # -----------------------------------------------------
+        payload = {
+            "type": "final_result",
+            "text": final_text,
+        }
+
+        if audio_base64:
+            payload["audio"] = audio_base64
+
+        await self.send_json(payload)
+
+    # --------------------------------------------------
     # DB HELPERS
-    # -----------------------------------------------------
+    # --------------------------------------------------
 
     @database_sync_to_async
     def _consume_credit(self, subscription):
@@ -255,7 +280,7 @@ class StreamingTranslationService:
 
     @database_sync_to_async
     def _create_translation(self, output_type):
-        from ..models import TranslationRequest  # Lazy import
+        from ..models import TranslationRequest
 
         return TranslationRequest.objects.create(
             user=self.user,
