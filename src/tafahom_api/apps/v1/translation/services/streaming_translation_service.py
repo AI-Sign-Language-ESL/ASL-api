@@ -11,7 +11,6 @@ from django.utils import timezone
 from channels.db import database_sync_to_async
 
 from .pipeline_service import TranslationPipelineService
-from tafahom_api.apps.v1.billing.services import consume_translation_credit
 
 logger = logging.getLogger(__name__)
 
@@ -115,9 +114,8 @@ class StreamingTranslationService:
 
         await self._consume_credit(subscription)
 
-        # 🔥 IMPORTANT:
-        # We ALWAYS stream TEXT.
-        # Voice is generated ONLY after STOP.
+        # 🔥 ALWAYS stream TEXT
+        # Voice is generated ONLY after STOP
         self.translation = await self._create_translation("text")
 
         self.requests_count += 1
@@ -204,7 +202,6 @@ class StreamingTranslationService:
 
     async def _process_batch(self, frames: List[bytes]):
         try:
-            # 🔑 Convert frames to base64 (CV API requirement)
             encoded_frames = [
                 base64.b64encode(frame).decode("utf-8") for frame in frames
             ]
@@ -238,10 +235,8 @@ class StreamingTranslationService:
             return
 
         final_text = " ".join(self.partial_text_buffer).strip()
-
         audio_base64 = None
 
-        # 🔊 Generate voice ONCE after user finishes signing
         if final_text:
             try:
                 audio_bytes = (
@@ -271,11 +266,14 @@ class StreamingTranslationService:
         await self.send_json(payload)
 
     # --------------------------------------------------
-    # DB HELPERS
+    # DB HELPERS (ALL LAZY IMPORTS)
     # --------------------------------------------------
 
     @database_sync_to_async
     def _consume_credit(self, subscription):
+        # 🔑 LAZY IMPORT (CRITICAL FIX)
+        from tafahom_api.apps.v1.billing.services import consume_translation_credit
+
         consume_translation_credit(subscription)
 
     @database_sync_to_async
