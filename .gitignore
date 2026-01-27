@@ -1,4 +1,48 @@
+# =========================
+# ENV / SECRETS
+# =========================
 .env
-.env.dev
+!.env.prod
 .env.prod
-.venv
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# =========================
+# DJANGO
+# =========================
+db.sqlite3
+staticfiles/
+media/
+
+# =========================
+# LOGS
+# =========================
+*.log
+logs/
+
+# =========================
+# DATA / GENERATED FILES
+# =========================
+translation_input_video/
+*.wav
+*.mp3
+*.mp4
+
+# =========================
+# OS / IDE
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

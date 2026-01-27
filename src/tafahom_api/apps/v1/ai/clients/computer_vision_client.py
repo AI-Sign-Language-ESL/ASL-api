@@ -5,7 +5,7 @@ import httpx
 
 class ComputerVisionClient:
     def __init__(self):
-        self.base_url = settings.AI_CV_BASE_URL.rstrip("/")
+        self.base_url = settings.AI_CV_BASE_URL
         self.timeout = settings.AI_TIMEOUT
 
     async def sign_to_gloss(self, frames: List[str]) -> dict:
