@@ -12,6 +12,7 @@
     Graduation Project – Computer Science
     <br />
     <p align="center">
+      <a href="https://techforpalestine.org/learn-more"><img alt="StandWithPalestine" src="https://raw.githubusercontent.com/Safouene1/support-palestine-banner/master/StandWithPalestine.svg"></a>
       <img alt="GitHub License" src="https://img.shields.io/github/license/AI-Sign-Language-ESL/ASL-api">
       <img alt="GitHub issues" src="https://img.shields.io/github/issues/AI-Sign-Language-ESL/ASL-api">
       <img alt="GitHub Tag" src="https://img.shields.io/github/v/tag/AI-Sign-Language-ESL/ASL-api">
