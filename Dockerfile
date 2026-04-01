@@ -15,7 +15,7 @@ WORKDIR /app/src
 
 # Install Python dependencies
 COPY req.txt /app/req.txt
-RUN pip install --upgrade pip && pip install -r /app/req.txt
+RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 
 # Copy project
 COPY src/ /app/src/
