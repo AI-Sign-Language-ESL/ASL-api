@@ -83,10 +83,11 @@ SUBSCRIPTION_STATUS = [
 PLAN_TYPES = [
     ("free", _("Free")),
     ("basic", _("Basic")),
+    ("go", _("GO")),
     ("premium", _("Premium")),
 ]
 
-CREDIT_TRANSACTION_TYPES = [
+TOKEN_TRANSACTION_TYPES = [
     ("used", _("Used")),
     ("earned", _("Earned")),
 ]

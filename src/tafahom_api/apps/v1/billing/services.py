@@ -1,39 +1,51 @@
 from django.db import transaction
 from django.db.models import F
-from .models import CreditTransaction
+from .models import TokenTransaction
 
 
-def consume_translation_credit(subscription):
+def consume_translation_token(subscription, amount=7):
     """
-    Consumes 1 credit from the subscription and logs the transaction.
-    Atomic ensures both happen or neither happens.
+    Consumes tokens from the subscription and logs the transaction.
     """
     with transaction.atomic():
-        subscription.consume(1)
+        subscription.consume(amount)
 
-        CreditTransaction.objects.create(
+        TokenTransaction.objects.create(
             user=subscription.user,
             subscription=subscription,
-            amount=-1,
+            amount=-amount,
             transaction_type="used",
             reason="Translation request",
         )
 
 
-def reward_dataset_contribution(subscription, credits=10):
+def consume_generation_token(subscription, amount=10):
+    with transaction.atomic():
+        subscription.consume(amount)
+
+        TokenTransaction.objects.create(
+            user=subscription.user,
+            subscription=subscription,
+            amount=-amount,
+            transaction_type="used",
+            reason="Generation request",
+        )
+
+
+def reward_dataset_contribution(subscription, tokens=10):
     """
-    Adds bonus credits safely avoiding race conditions.
+    Adds bonus tokens safely avoiding race conditions.
     """
     with transaction.atomic():
-        subscription.bonus_credits = F("bonus_credits") + credits
-        subscription.save(update_fields=["bonus_credits"])
+        subscription.bonus_tokens = F("bonus_tokens") + tokens
+        subscription.save(update_fields=["bonus_tokens"])
 
         subscription.refresh_from_db()
 
-        CreditTransaction.objects.create(
+        TokenTransaction.objects.create(
             user=subscription.user,
             subscription=subscription,
-            amount=credits,
+            amount=tokens,
             transaction_type="earned",
             reason="Dataset contribution approved",
         )

@@ -33,7 +33,7 @@ class AIRequest(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     latency_ms = models.PositiveIntegerField(help_text="Latency in milliseconds")
 
-    credits_used = models.PositiveIntegerField(default=1)
+    tokens_used = models.PositiveIntegerField(default=1)
 
     error_message = models.TextField(blank=True)
 

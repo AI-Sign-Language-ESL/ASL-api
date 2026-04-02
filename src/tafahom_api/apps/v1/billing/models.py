@@ -8,7 +8,7 @@ from decimal import Decimal
 from tafahom_api.common.enums import (
     PLAN_TYPES,
     SUBSCRIPTION_STATUS,
-    CREDIT_TRANSACTION_TYPES,
+    TOKEN_TRANSACTION_TYPES,
 )
 
 
@@ -21,7 +21,7 @@ class SubscriptionPlan(models.Model):
         unique=True,
     )
 
-    credits_per_month = models.PositiveIntegerField(default=50)
+    weekly_tokens_limit = models.PositiveIntegerField(default=50)
     price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
     is_active = models.BooleanField(default=True)
 
@@ -59,36 +59,36 @@ class Subscription(models.Model):
     start_date = models.DateTimeField(default=timezone.now)
     last_reset = models.DateTimeField(default=timezone.now)
 
-    credits_used = models.PositiveIntegerField(default=0)
-    bonus_credits = models.IntegerField(default=0)
+    tokens_used = models.PositiveIntegerField(default=0)
+    bonus_tokens = models.IntegerField(default=0)
 
     class Meta:
         db_table = "subscriptions"
 
     def reset_if_needed(self):
-        if timezone.now() - self.last_reset >= timedelta(days=30):
-            self.credits_used = 0
+        if timezone.now() - self.last_reset >= timedelta(days=7):
+            self.tokens_used = 0
             self.last_reset = timezone.now()
-            self.save(update_fields=["credits_used", "last_reset"])
+            self.save(update_fields=["tokens_used", "last_reset"])
 
-    def total_credits(self):
-        return self.plan.credits_per_month + self.bonus_credits
+    def total_tokens(self):
+        return self.plan.weekly_tokens_limit + self.bonus_tokens
 
-    def remaining_credits(self):
+    def remaining_tokens(self):
         self.reset_if_needed()
-        return max(0, self.total_credits() - self.credits_used)
+        return max(0, self.total_tokens() - self.tokens_used)
 
     def can_consume(self, amount=1):
-        return self.remaining_credits() >= amount
+        return self.remaining_tokens() >= amount
 
     def consume(self, amount=1):
         if not self.can_consume(amount):
-            raise ValueError("Not enough credits")
-        self.credits_used += amount
-        self.save(update_fields=["credits_used"])
+            raise ValueError("Not enough tokens")
+        self.tokens_used += amount
+        self.save(update_fields=["tokens_used"])
 
 
-class CreditTransaction(models.Model):
+class TokenTransaction(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -103,12 +103,12 @@ class CreditTransaction(models.Model):
 
     transaction_type = models.CharField(
         max_length=20,
-        choices=CREDIT_TRANSACTION_TYPES,
+        choices=TOKEN_TRANSACTION_TYPES,
     )
 
     reason = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "credit_transactions"
+        db_table = "token_transactions"
         ordering = ["-created_at"]

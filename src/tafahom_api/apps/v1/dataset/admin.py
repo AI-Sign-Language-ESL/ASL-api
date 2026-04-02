@@ -72,7 +72,7 @@ class DatasetContributionAdmin(admin.ModelAdmin):
                 if hasattr(contribution.contributor, 'subscription'):
                     reward_dataset_contribution(
                         subscription=contribution.contributor.subscription,
-                        credits=10
+                        tokens=10
                     )
                 success_count += 1
             except Exception as e:

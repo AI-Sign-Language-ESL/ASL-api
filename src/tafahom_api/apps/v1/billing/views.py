@@ -42,8 +42,8 @@ class MySubscriptionView(generics.RetrieveAPIView):
             plan=free_plan,
             status="active",
             billing_period="monthly",
-            credits_used=0,
-            bonus_credits=0,
+            tokens_used=0,
+            bonus_tokens=0,
         )
 
 
@@ -105,9 +105,9 @@ class CancelSubscriptionView(generics.GenericAPIView):
         )
 
 
-class MyCreditsView(generics.GenericAPIView):
+class MyTokensView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = serializers.UserCreditsSerializer
+    serializer_class = serializers.UserTokensSerializer
 
     def get(self, request):
         subscription = getattr(request.user, "subscription", None)
@@ -119,11 +119,41 @@ class MyCreditsView(generics.GenericAPIView):
             )
 
         data = {
-            "total_credits": subscription.total_credits(),
-            "credits_used": subscription.credits_used,
-            "bonus_credits": subscription.bonus_credits,
-            "remaining_credits": subscription.remaining_credits(),
+            "total_tokens": subscription.total_tokens(),
+            "tokens_used": subscription.tokens_used,
+            "bonus_tokens": subscription.bonus_tokens,
+            "remaining_tokens": subscription.remaining_tokens(),
             "can_consume": subscription.can_consume(),
         }
 
         return Response(data, status=status.HTTP_200_OK)
+class TokenUsageAnalyticsView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        subscription = getattr(request.user, "subscription", None)
+        if not subscription:
+            return Response({"detail": "No subscription found"}, status=status.HTTP_404_NOT_FOUND)
+
+        transactions = models.TokenTransaction.objects.filter(subscription=subscription).order_by("-created_at")[:50]
+        
+        # Simple aggregation for analytics
+        usage_by_reason = {}
+        for tx in transactions:
+            if tx.amount < 0:
+                usage_by_reason[tx.reason] = usage_by_reason.get(tx.reason, 0) + abs(tx.amount)
+
+        return Response({
+            "current_tokens": subscription.remaining_tokens(),
+            "weekly_limit": subscription.plan.weekly_tokens_limit,
+            "bonus_tokens": subscription.bonus_tokens,
+            "usage_breakdown": usage_by_reason,
+            "recent_transactions": [
+                {
+                    "amount": tx.amount,
+                    "type": tx.transaction_type,
+                    "reason": tx.reason,
+                    "date": tx.created_at
+                } for tx in transactions
+            ]
+        }, status=status.HTTP_200_OK)

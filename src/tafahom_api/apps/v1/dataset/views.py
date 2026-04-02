@@ -69,19 +69,19 @@ class ApproveDatasetContributionView(generics.GenericAPIView):
                         plan=default_plan,
                         status="active",
                         billing_period="monthly",
-                        credits_used=0,
-                        bonus_credits=0,
+                        tokens_used=0,
+                        bonus_tokens=0,
                     )
                 else:
                     # CRITICAL: No plans exist in DB at all. Cannot reward.
                     # We log this internally or just return success without reward.
                     subscription = None
 
-            # 3. Reward the Credits (if we found/created a wallet)
+            # 3. Reward the Tokens (if we found/created a wallet)
             if subscription:
                 reward_dataset_contribution(
                     subscription=subscription,
-                    credits=10,
+                    tokens=10,
                 )
 
         except DatasetContribution.DoesNotExist:

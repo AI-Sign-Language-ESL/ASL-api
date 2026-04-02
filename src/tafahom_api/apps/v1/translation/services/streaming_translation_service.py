@@ -104,15 +104,15 @@ class StreamingTranslationService:
             return
 
         subscription = getattr(self.user, "subscription", None)
-        has_credit = await database_sync_to_async(
-            lambda: subscription and subscription.can_consume(1)
+        has_token = await database_sync_to_async(
+            lambda: subscription and subscription.can_consume(7)
         )()
 
-        if not has_credit:
-            await self.send_json({"type": "error", "message": "Not enough credits"})
+        if not has_token:
+            await self.send_json({"type": "error", "message": "Not enough tokens"})
             return
 
-        await self._consume_credit(subscription)
+        await self._consume_token(subscription)
 
         # 🔥 ALWAYS stream TEXT
         # Voice is generated ONLY after STOP
@@ -270,11 +270,11 @@ class StreamingTranslationService:
     # --------------------------------------------------
 
     @database_sync_to_async
-    def _consume_credit(self, subscription):
+    def _consume_token(self, subscription):
         # 🔑 LAZY IMPORT (CRITICAL FIX)
-        from tafahom_api.apps.v1.billing.services import consume_translation_credit
+        from tafahom_api.apps.v1.billing.services import consume_translation_token
 
-        consume_translation_credit(subscription)
+        consume_translation_token(subscription)
 
     @database_sync_to_async
     def _create_translation(self, output_type):

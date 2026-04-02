@@ -20,7 +20,7 @@ from .serializers import (
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
-from tafahom_api.apps.v1.billing.services import consume_translation_credit
+from tafahom_api.apps.v1.billing.services import consume_translation_token, consume_generation_token
 from tafahom_api.apps.v1.translation.services.sign_video_service import (
     generate_sign_video_from_gloss,
 )
@@ -28,6 +28,8 @@ from tafahom_api.apps.v1.translation.services.streaming_translation_service impo
     TranslationPipelineService,
 )
 from tafahom_api.apps.v1.translation.serializers import TextToSignSerializer
+
+from tafahom_api.common.decorators import require_token_and_plan
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +39,11 @@ logger = logging.getLogger(__name__)
 # =====================================================
 class SpeechToTextView(APIView):
     parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated]
 
+    @require_token_and_plan(token_cost=5, min_plan="basic", feature_name="Speech Mode")
     def post(self, request):
+        subscription = request.subscription
         audio_file = request.FILES.get("file")
 
         if not audio_file:
@@ -66,48 +71,17 @@ class SpeechToTextView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        logger.info("RAW STT RESULT: %s", result)
+        text = (result.get("text") or "").strip() if isinstance(result, dict) else ""
 
-        if not isinstance(result, dict):
-            logger.error("Invalid STT response type: %s", type(result))
-            return Response(
-                {"error": "Invalid STT response"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        if text:
+            # Only consume tokens if there's actually a result
+            with transaction.atomic():
+                subscription.consume(5)
 
-        text = (result.get("text") or "").strip()
-
-        if not text:
-            logger.error(
-                "STT returned EMPTY text — audio received but no transcript produced"
-            )
-
-        return Response({"text": text}, status=status.HTTP_200_OK)
-
-
-# =====================================================
-# SUBSCRIPTION WALLET
-# =====================================================
-def _get_or_create_wallet(user):
-    try:
-        return user.subscription
-    except ObjectDoesNotExist:
-        free_plan = (
-            SubscriptionPlan.objects.filter(plan_type="free").first()
-            or SubscriptionPlan.objects.filter(is_active=True).first()
-        )
-
-        if not free_plan:
-            return None
-
-        return Subscription.objects.create(
-            user=user,
-            plan=free_plan,
-            status="active",
-            billing_period="monthly",
-            credits_used=0,
-            bonus_credits=0,
-        )
+        return Response({
+            "text": text,
+            "remaining_tokens": subscription.remaining_tokens(),
+        }, status=status.HTTP_200_OK)
 
 
 # =====================================================
@@ -146,26 +120,14 @@ class TranslationRequestCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
 
+    @require_token_and_plan(token_cost=7, min_plan="free", feature_name="Translation")
     def post(self, request, *args, **kwargs):
-        subscription = _get_or_create_wallet(request.user)
-
-        if not subscription:
-            return Response(
-                {"detail": "System Configuration Error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        if not subscription.can_consume(1):
-            return Response(
-                {"detail": "Not enough credits"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
+        subscription = request.subscription
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
-            consume_translation_credit(subscription)
+            consume_translation_token(subscription, amount=7)
             translation = serializer.save(
                 user=request.user,
                 status="pending",
@@ -176,7 +138,7 @@ class TranslationRequestCreateView(generics.CreateAPIView):
                 "id": translation.id,
                 "status": translation.status,
                 "direction": translation.direction,
-                "remaining_credits": subscription.remaining_credits(),
+                "remaining_tokens": subscription.remaining_tokens(),
             },
             status=status.HTTP_201_CREATED,
         )
@@ -190,64 +152,35 @@ class TranslationRequestCreateView(generics.CreateAPIView):
 class TranslateToSignView(generics.GenericAPIView):
     """
     Text → Sign Language (Video)
-
-    Pipeline:
-    Arabic Text
-    → Text-to-Gloss AI
-    → Gloss tokens
-    → Gloss → Video
     """
 
     permission_classes = [IsAuthenticated]
     serializer_class = TextToSignSerializer
 
+    @require_token_and_plan(token_cost=10, min_plan="free", feature_name="Sign Generation")
     def post(self, request):
-        subscription = _get_or_create_wallet(request.user)
-        if not subscription:
-            return Response(
-                {"detail": "System Configuration Error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        if not subscription.can_consume(1):
-            return Response(
-                {"detail": "Not enough credits"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
+        subscription = request.subscription
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         text = serializer.validated_data["text"]
 
-        # -------------------------------------------------
         # 1️⃣ Text → Gloss (AI)
-        # -------------------------------------------------
         try:
             ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
             gloss_tokens = ai_result["gloss"]
         except ValueError as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # -------------------------------------------------
         # 2️⃣ Gloss → Sign Video
-        # -------------------------------------------------
         try:
             video_url = generate_sign_video_from_gloss(gloss_tokens)
         except ValueError as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # -------------------------------------------------
-        # 3️⃣ Save + Consume Credit
-        # -------------------------------------------------
+        # 3️⃣ Save + Consume Tokens
         with transaction.atomic():
-            consume_translation_credit(subscription)
+            consume_generation_token(subscription, amount=10)
 
             translation = TranslationRequest.objects.create(
                 user=request.user,
@@ -262,7 +195,7 @@ class TranslateToSignView(generics.GenericAPIView):
                 "id": translation.id,
                 "status": translation.status,
                 "video": video_url,
-                "remaining_credits": subscription.remaining_credits(),
+                "remaining_tokens": subscription.remaining_tokens(),
             },
             status=status.HTTP_201_CREATED,
         )

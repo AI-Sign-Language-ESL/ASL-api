@@ -11,14 +11,14 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "plan_type",
-            "credits_per_month",
+            "weekly_tokens_limit",
             "price",
         )
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     plan = SubscriptionPlanSerializer(read_only=True)
-    remaining_credits = serializers.SerializerMethodField()
+    remaining_tokens = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
 
     class Meta:
@@ -28,16 +28,16 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "status",
             "billing_period",
             "end_date",
-            "credits_used",
-            "bonus_credits",
-            "remaining_credits",
+            "tokens_used",
+            "bonus_tokens",
+            "remaining_tokens",
             "is_active",
         )
         read_only_fields = fields
 
     @extend_schema_field(serializers.IntegerField())
-    def get_remaining_credits(self, obj):
-        return obj.remaining_credits()
+    def get_remaining_tokens(self, obj):
+        return obj.remaining_tokens()
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_active(self, obj):
@@ -49,9 +49,9 @@ class SubscribeSerializer(serializers.Serializer):
     billing_period = serializers.ChoiceField(choices=("monthly", "yearly"))
 
 
-class UserCreditsSerializer(serializers.Serializer):
-    total_credits = serializers.IntegerField()
-    credits_used = serializers.IntegerField()
-    bonus_credits = serializers.IntegerField()
-    remaining_credits = serializers.IntegerField()
+class UserTokensSerializer(serializers.Serializer):
+    total_tokens = serializers.IntegerField()
+    tokens_used = serializers.IntegerField()
+    bonus_tokens = serializers.IntegerField()
+    remaining_tokens = serializers.IntegerField()
     can_consume = serializers.BooleanField()

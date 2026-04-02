@@ -10,8 +10,11 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import OriginValidator
 
 # Import your custom routing and middleware
-from tafahom_api.apps.v1.translation.routing import websocket_urlpatterns
+from tafahom_api.apps.v1.translation.routing import websocket_urlpatterns as translation_ws
+from tafahom_api.apps.v1.social.routing import websocket_urlpatterns as social_ws
 from tafahom_api.apps.v1.authentication.middleware import JWTAuthMiddlewareStack
+
+combined_urlpatterns = translation_ws + social_ws
 
 application = ProtocolTypeRouter(
     {
@@ -20,11 +23,14 @@ application = ProtocolTypeRouter(
         # WebSocket requests flow:
         # OriginValidator -> JWT Middleware -> URL Router
         "websocket": OriginValidator(
-            JWTAuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+            JWTAuthMiddlewareStack(URLRouter(combined_urlpatterns)),
             allowed_origins=[
                 "https://tafahom.io",
                 "https://www.tafahom.io",
-                # Note: Add "http://localhost:port" here if testing locally without Nginx
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173",
             ],
         ),
     }

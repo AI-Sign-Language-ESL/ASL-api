@@ -25,10 +25,15 @@ urlpatterns = [
         views.CancelSubscriptionView.as_view(),
         name="cancel-subscription",
     ),
-    # 🆕 Credits
+    # 🆕 Tokens
     path(
-        "me/credits/",
-        views.MyCreditsView.as_view(),
-        name="my-credits",
+        "me/tokens/",
+        views.MyTokensView.as_view(),
+        name="my-tokens",
+    ),
+    path(
+        "me/tokens/analytics/",
+        views.TokenUsageAnalyticsView.as_view(),
+        name="token-analytics",
     ),
 ]
