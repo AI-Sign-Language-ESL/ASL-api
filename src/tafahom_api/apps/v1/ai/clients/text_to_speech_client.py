@@ -4,8 +4,8 @@ from django.conf import settings
 
 class TextToSpeechClient:
     def __init__(self):
-        self.base_url = settings.AI_TTS_BASE_URL.rstrip("/")
-        self.timeout = 60.0  # 🔥 FIXED (explicit timeout)
+        self.base_url = settings.AI_TTS_BASE_URL
+        self.timeout = 60.0
 
     async def text_to_speech(self, text: str) -> bytes:
         if not text or not text.strip():
