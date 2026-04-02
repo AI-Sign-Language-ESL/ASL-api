@@ -4,7 +4,7 @@ from typing import List
 import httpx
 from django.conf import settings
 
-from .models import AIRequest
+from tafahom_api.apps.v1.ai.models import AIRequest
 
 
 class ComputerVisionClient:
