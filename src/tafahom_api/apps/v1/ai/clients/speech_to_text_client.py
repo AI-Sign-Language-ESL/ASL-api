@@ -14,60 +14,54 @@ class SpeechToTextClient(BaseAIClient):
         and sends it to the STT service with REQUIRED params.
         """
 
-        try:
-            # -------------------------------------------------
-            # 1️⃣ Save uploaded audio bytes to temp file
-            # -------------------------------------------------
-            with tempfile.NamedTemporaryFile(suffix=".input", delete=False) as raw:
-                raw.write(audio_file.read())
-                raw.flush()
-                raw_path = raw.name
+        # -------------------------------------------------
+        # 1️⃣ Save uploaded audio bytes to temp file
+        # -------------------------------------------------
+        with tempfile.NamedTemporaryFile(suffix=".input", delete=False) as raw:
+            raw.write(audio_file.read())
+            raw.flush()
+            raw_path = raw.name
 
-            # -------------------------------------------------
-            # 2️⃣ Convert to clean WAV (PCM16, mono, 16kHz)
-            # -------------------------------------------------
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav:
-                subprocess.run(
-                    [
-                        "ffmpeg",
-                        "-y",
-                        "-i",
-                        raw_path,
-                        "-ac",
-                        "1",  # mono
-                        "-ar",
-                        "16000",  # 16kHz
-                        "-sample_fmt",
-                        "s16",  # PCM16
-                        wav.name,
-                    ],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=True,
-                )
-                wav_path = wav.name
-                print("FINAL WAV SIZE:", os.path.getsize(wav_path))
+        # -------------------------------------------------
+        # 2️⃣ Convert to clean WAV (PCM16, mono, 16kHz)
+        # -------------------------------------------------
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    raw_path,
+                    "-ac",
+                    "1",  # mono
+                    "-ar",
+                    "16000",  # 16kHz
+                    "-sample_fmt",
+                    "s16",  # PCM16
+                    wav.name,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+            wav_path = wav.name
+            print("FINAL WAV SIZE:", os.path.getsize(wav_path))
 
-            # -------------------------------------------------
-            # 3️⃣ Send WAV to STT service (FIXED)
-            # -------------------------------------------------
-            with open(wav_path, "rb") as f:
-                return await self._post_file(
-                    "/",
-                    files={
-                        "file": (
-                            "audio.wav",  # ✅ filename REQUIRED
-                            f,  # ✅ file bytes
-                            "audio/wav",  # ✅ MIME type
-                        ),
-                    },
-                    data={
-                        "language": "ar",  # 🔥 REQUIRED FOR ARABIC
-                        "task": "transcribe",  # 🔥 REQUIRED FOR WHISPER-LIKE MODELS
-                    },
-                )
-        except Exception as e:
-            import logging
-            logging.error(f"STT mock triggered due to local failure: {str(e)}")
-            # If the AI service is not running locally, or ffmpeg is missing
-            return {"text": "مرحبا، هذا نص تجريبي لأن خادم الذكاء الاصطناعي غير متصل."}
+        # -------------------------------------------------
+        # 3️⃣ Send WAV to STT service (FIXED)
+        # -------------------------------------------------
+        with open(wav_path, "rb") as f:
+            return await self._post_file(
+                "/",
+                files={
+                    "file": (
+                        "audio.wav",  # ✅ filename REQUIRED
+                        f,  # ✅ file bytes
+                        "audio/wav",  # ✅ MIME type
+                    ),
+                },
+                data={
+                    "language": "ar",  # 🔥 REQUIRED FOR ARABIC
+                    "task": "transcribe",  # 🔥 REQUIRED FOR WHISPER-LIKE MODELS
+                },
+            )
