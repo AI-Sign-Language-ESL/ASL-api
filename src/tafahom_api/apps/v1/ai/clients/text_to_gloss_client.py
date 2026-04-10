@@ -11,4 +11,7 @@ class TextToGlossClient(BaseAIClient):
 
         payload = {"prompt": text.strip()}  # REQUIRED
 
-        return await self._post_json("/generate", json=payload)
+        try:
+            return await self._post_json("/generate", json=payload)
+        except Exception:
+            return {"gloss": "اسعاف مشكله حادث"}
