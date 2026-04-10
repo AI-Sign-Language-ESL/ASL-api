@@ -53,7 +53,7 @@ class SpeechToTextClient(BaseAIClient):
             # -------------------------------------------------
             with open(wav_path, "rb") as f:
                 return await self._post_file(
-                    "/predict",
+                    "/",
                     files={
                         "file": (
                             "audio.wav",  # ✅ filename REQUIRED
