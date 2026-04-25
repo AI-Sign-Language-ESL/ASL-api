@@ -15,18 +15,13 @@ def require_token_and_plan(token_cost=0, min_plan="free", feature_name=None):
             if not user.is_authenticated:
                 return Response({"detail": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
 
-            # Get or create subscription (wallet)
+            # Get subscription (wallet)
             try:
                 subscription = user.subscription
             except ObjectDoesNotExist:
-                free_plan = SubscriptionPlan.objects.filter(plan_type="free").first()
-                if not free_plan:
-                     return Response({"detail": "System configuration error: No default plan found"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-                subscription = Subscription.objects.create(
-                    user=user,
-                    plan=free_plan,
-                    status="active"
+                return Response(
+                    {"detail": "Your account is not fully configured for billing yet."},
+                    status=status.HTTP_403_FORBIDDEN
                 )
 
             # 1. Plan Check

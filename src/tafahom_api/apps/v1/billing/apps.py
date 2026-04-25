@@ -5,3 +5,7 @@ class BillingConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "tafahom_api.apps.v1.billing"
     label = "billing"
+
+    def ready(self):
+        # Implicitly connect signal handlers when the app is ready
+        import tafahom_api.apps.v1.billing.signals  # noqa
