@@ -64,6 +64,10 @@ class Subscription(models.Model):
 
     class Meta:
         db_table = "subscriptions"
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["status", "end_date"]),
+        ]
 
     def reset_if_needed(self):
         if timezone.now() - self.last_reset >= timedelta(days=7):
@@ -112,3 +116,7 @@ class TokenTransaction(models.Model):
     class Meta:
         db_table = "token_transactions"
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["subscription", "-created_at"]),
+        ]

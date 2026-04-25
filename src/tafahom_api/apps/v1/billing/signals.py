@@ -13,7 +13,7 @@ User = get_user_model()
 @receiver(post_save, sender=User)
 def create_welcome_subscription(sender, instance, created, **kwargs):
     """
-    Signal to automatically grant a free subscription and 30 bonus tokens
+    Signal to automatically grant a free subscription and 50 welcome tokens
     to every newly registered user.
     """
     # Only act on new user creation
@@ -38,18 +38,18 @@ def create_welcome_subscription(sender, instance, created, **kwargs):
                 user=instance,
                 plan=free_plan,
                 status="active",
-                bonus_tokens=30,
+                bonus_tokens=50,
             )
 
             # 4. Log the token transaction for billing history
             TokenTransaction.objects.create(
                 user=instance,
                 subscription=subscription,
-                amount=30,
+                amount=50,
                 transaction_type="bonus",
                 reason="welcome_bonus"
             )
-            logger.info(f"Successfully granted welcome bonus (+30 tokens) to new user: {instance.username}")
+            logger.info(f"Successfully granted welcome bonus (+50 tokens) to new user: {instance.username}")
 
     except Exception as e:
         logger.error(f"Error creating subscription for new user {instance.username}: {e}")

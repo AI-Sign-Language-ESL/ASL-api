@@ -18,7 +18,7 @@ from tafahom_api.apps.v1.authentication.middleware import JWTAuthMiddlewareStack
 
 # 🔹 Import ALL websocket routes (important)
 from tafahom_api.apps.v1.translation.routing import websocket_urlpatterns as translation_ws
-from tafahom_api.apps.v1.meetings.routing import websocket_urlpatterns as meetings_ws
+from tafahom_api.apps.v1.meetings.routings import websocket_urlpatterns as meetings_ws
 
 # 🔹 Combine all websocket routes
 websocket_urlpatterns = translation_ws + meetings_ws
@@ -38,6 +38,7 @@ application = ProtocolTypeRouter({
             # 🌍 Production domains
             "https://tafahom.io",
             "https://www.tafahom.io",
+            "https://api.tafahom.io",
 
             # 🧪 Local development (IMPORTANT)
             "http://localhost:3000",

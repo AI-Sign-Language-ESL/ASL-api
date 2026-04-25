@@ -42,6 +42,18 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 GOOGLE_CLIENT_ID = GOOGLE_CLIENT_ID
 
 # =============================================================================
+# SECURITY HEADERS (additional)
+# =============================================================================
+SECURE_CONTENT_TYPE_NOSNIFF = ENVIRONMENT == "PROD"
+SECURE_BROWSER_XSS_FILTER = True
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
+# Rate limiting
+RATELIMIT_USE_CACHE = "default" if ENVIRONMENT == "PROD" else "locmem"
+RATELIMIT_ENABLED = ENVIRONMENT == "PROD"
+
+# =============================================================================
 # SECURITY
 # =============================================================================
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -53,6 +65,21 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = ENVIRONMENT == "PROD"
 SECURE_HSTS_PRELOAD = ENVIRONMENT == "PROD"
 SECURE_SSL_REDIRECT = ENVIRONMENT == "PROD"
 CHANNELS_ALLOWED_HOSTS = ALLOWED_HOSTS
+
+# =============================================================================
+# CACHING
+# =============================================================================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}",
+        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+        "KEY_PREFIX": "tafahom",
+        "TIMEOUT": 300,
+    }
+    if ENVIRONMENT == "PROD"
+    else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "unique-snowflake"}
+}
 # =============================================================================
 # APPLICATIONS
 # =============================================================================
@@ -189,37 +216,31 @@ STATIC_ROOT = "/app/staticfiles"
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ["X-Total-Count", "X-Page-Count"]
+CORS_PREFLOW_MAX_AGE = 3600
 CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS
 
 # =============================================================================
-# AI CONFIG (FROM ENV)
+# DRF ENHANCED SETTINGS
 # =============================================================================
-AI_TIMEOUT = AI_TIMEOUT
-AI_STT_BASE_URL = AI_STT_BASE_URL
-AI_TTS_BASE_URL = AI_TTS_BASE_URL
-AI_GLOSS_TO_TEXT_BASE_URL = AI_GLOSS_TO_TEXT_BASE_URL
-AI_TEXT_TO_GLOSS_BASE_URL = AI_TEXT_TO_GLOSS_BASE_URL
-AI_CV_BASE_URL = AI_CV_BASE_URL
-
-# =============================================================================
-# LOGGING
-# =============================================================================
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "default": {"format": "[%(asctime)s] %(levelname)s %(name)s %(message)s"},
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/minute",
+        "user": "200/minute",
+        "ws_msg": WS_MAX_MESSAGES_PER_SECOND,
     },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "default",
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "INFO" if ENVIRONMENT == "DEV" else "WARNING",
-    },
+    "EXCEPTION_HANDLER": "tafahom_api.common.exception_handler.custom_exception_handler",
 }
 
 # =============================================================================

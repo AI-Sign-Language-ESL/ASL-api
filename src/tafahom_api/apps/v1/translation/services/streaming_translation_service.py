@@ -105,7 +105,7 @@ class StreamingTranslationService:
 
         subscription = getattr(self.user, "subscription", None)
         has_token = await database_sync_to_async(
-            lambda: subscription and subscription.can_consume(7)
+            lambda: subscription and subscription.can_consume(5)
         )()
 
         if not has_token:

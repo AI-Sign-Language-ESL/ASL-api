@@ -41,7 +41,7 @@ class SpeechToTextView(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated]
 
-    @require_token_and_plan(token_cost=5, min_plan="basic", feature_name="Speech Mode")
+    @require_token_and_plan(token_cost=5, min_plan="basic", feature_name="Speech Mode", cost_type="speech_to_text")
     def post(self, request):
         subscription = request.subscription
         audio_file = request.FILES.get("file")
@@ -120,15 +120,15 @@ class TranslationRequestCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TranslationRequestCreateSerializer
 
-    @require_token_and_plan(token_cost=7, min_plan="free", feature_name="Translation")
+    @require_token_and_plan(token_cost=7, min_plan="free", feature_name="Translation", cost_type="translation")
     def post(self, request, *args, **kwargs):
         subscription = request.subscription
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        with transaction.atomic():
-            consume_translation_token(subscription, amount=7)
-            translation = serializer.save(
+with transaction.atomic():
+                consume_translation_token(subscription)
+                translation = serializer.save(
                 user=request.user,
                 status="pending",
             )

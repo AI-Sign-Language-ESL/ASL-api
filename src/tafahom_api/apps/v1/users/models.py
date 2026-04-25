@@ -17,7 +17,11 @@ class User(AbstractUser):
     )
 
     class Meta:
-        db_table = "users"  # Add this to avoid table name conflicts
+        db_table = "users"
+        indexes = [
+            models.Index(fields=["email"]),
+            models.Index(fields=["google_id"]),
+        ]
 
     def __str__(self):
         return self.username

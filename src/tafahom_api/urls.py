@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 urlpatterns: list[URLPattern | URLResolver] = [
     path("admin/", admin.site.urls),
     path("api/v1/", include("tafahom_api.apps.v1.urls")),
+    path("api/v1/health/", include("tafahom_api.apps.v1.health.urls")),
     path("auth/", TokenObtainPairView.as_view(), name="authtoken"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="authtoken-refresh"),
     path("docs/", SpectacularSwaggerView.as_view(), name="docs"),
