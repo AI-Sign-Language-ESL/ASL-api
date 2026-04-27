@@ -27,6 +27,12 @@ from .env import (
     AI_TEXT_TO_GLOSS_BASE_URL,
     AI_CV_BASE_URL,
     GOOGLE_CLIENT_ID,
+    EMAIL_HOST as ENV_EMAIL_HOST,
+    EMAIL_PORT as ENV_EMAIL_PORT,
+    EMAIL_HOST_USER,
+    EMAIL_HOST_PASSWORD,
+    EMAIL_USE_TLS,
+    DEFAULT_FROM_EMAIL as ENV_DEFAULT_FROM_EMAIL,
 )
 
 # =============================================================================
@@ -257,3 +263,19 @@ if ENVIRONMENT == "PROD" and SENTRY_DSN:
         traces_sample_rate=0.2,
         send_default_pii=False,
     )
+
+# =============================================================================
+# EMAILS
+# =============================================================================
+if ENVIRONMENT == "PROD":
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = ENV_EMAIL_HOST
+    EMAIL_PORT = ENV_EMAIL_PORT
+    EMAIL_HOST_USER = EMAIL_HOST_USER
+    EMAIL_HOST_PASSWORD = EMAIL_HOST_PASSWORD
+    EMAIL_USE_TLS = EMAIL_USE_TLS
+    DEFAULT_FROM_EMAIL = ENV_DEFAULT_FROM_EMAIL
+else:
+    # Print emails to the console in development
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+    DEFAULT_FROM_EMAIL = "webmaster@localhost"
