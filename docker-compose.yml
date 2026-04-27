@@ -1,8 +1,6 @@
-version: "3.9"
-
 services:
   # =========================
-  # Backend (Django + Daphne)
+  # Django Backend (Daphne)
   # =========================
   backend:
     container_name: tafahom-backend
@@ -19,7 +17,7 @@ services:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
-      - "8000:8000" # ✅ IMPORTANT (host nginx will use this)
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,7 +43,7 @@ services:
     restart: unless-stopped
 
   # =========================
-  # Redis (Channels)
+  # Redis
   # =========================
   redis:
     image: redis:7-alpine
@@ -53,7 +51,7 @@ services:
     restart: unless-stopped
 
   # =========================
-  # pgAdmin (Optional UI)
+  # pgAdmin (FIXED)
   # =========================
   pgadmin:
     image: dpage/pgadmin4
@@ -61,9 +59,10 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@tafahom.com
       PGADMIN_DEFAULT_PASSWORD: admin123
-      SCRIPT_NAME: /pgadmin
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+      PGADMIN_CONFIG_APPLICATION_ROOT: /pgadmin # 🔥 REQUIRED
     ports:
-      - "5050:80" # access via http://server-ip:5050
+      - "5050:80"
     depends_on:
       - postgres
     restart: unless-stopped
