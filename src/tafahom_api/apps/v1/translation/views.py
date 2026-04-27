@@ -126,9 +126,9 @@ class TranslationRequestCreateView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-with transaction.atomic():
-                consume_translation_token(subscription)
-                translation = serializer.save(
+        with transaction.atomic():
+            consume_translation_token(subscription)
+            translation = serializer.save(
                 user=request.user,
                 status="pending",
             )
