@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TAFAHOM Verification Code</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            margin: 0;
+            padding: 0;
+            color: #ffffff;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #1e293b;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .header {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 32px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 800;
+        }
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .content h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #f8fafc;
+        }
+        .content p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+        .code-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 25px;
+            margin: 30px 0;
+            display: inline-block;
+        }
+        .code {
+            font-size: 48px;
+            font-weight: 800;
+            letter-spacing: 12px;
+            color: #3b82f6;
+            margin: 0;
+        }
+        .footer {
+            background: #111827;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>TAFAHOM</h1>
+        </div>
+        <div class="content">
+            <h2>Verify Your Email</h2>
+            <p>Welcome to the future of sign language translation. <br>Enter the code below to verify your account and get started.</p>
+            
+            <div class="code-box">
+                <p style="font-size: 12px; text-transform: uppercase; margin-top: 0; color: #64748b; letter-spacing: 1px;">Your Verification Code</p>
+                <h3 class="code">{{ code }}</h3>
+            </div>
+
+            <p style="font-size: 14px;">This code will expire in 15 minutes. <br>If you didn't request this, please ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 TAFAHOM AI. All rights reserved.</p>
+            <p>Empowering communication through artificial intelligence.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -267,7 +267,7 @@ if ENVIRONMENT == "PROD" and SENTRY_DSN:
 # =============================================================================
 # EMAILS
 # =============================================================================
-if ENVIRONMENT == "PROD":
+if ENV_EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
     EMAIL_HOST = ENV_EMAIL_HOST
     EMAIL_PORT = ENV_EMAIL_PORT

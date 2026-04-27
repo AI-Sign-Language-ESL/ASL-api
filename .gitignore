@@ -2,8 +2,10 @@
 # ENV / SECRETS
 # =========================
 .env
-!.env.prod
+.env.*
 .env.prod
+.env.dev
+.env.production
 # =========================
 # PYTHON
 # =========================

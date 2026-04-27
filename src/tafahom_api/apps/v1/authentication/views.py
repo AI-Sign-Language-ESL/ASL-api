@@ -8,6 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.mail import send_mail
+from tafahom_api.common.emails import send_branded_verification_email
 
 from rest_framework import status, generics
 from rest_framework.views import APIView
@@ -440,17 +441,11 @@ class ResendVerificationCodeView(APIView):
         user = User.objects.filter(email__iexact=email).first()
 
         if user:
-            # Generate new 6-digit code
+            # ✉️ SEND BRANDED VERIFICATION CODE
             code = "".join([secrets.choice("0123456789") for _ in range(6)])
             models.EmailVerificationCode.objects.create(user=user, code=code)
 
-            send_mail(
-                _("Email verification"),
-                _("Your verification code is: {code}").format(code=code),
-                getattr(settings, "DEFAULT_FROM_EMAIL", None),
-                [user.email],
-                fail_silently=True,
-            )
+            send_branded_verification_email(user.email, code)
 
         return Response(
             {"detail": _("If the email exists, a new code was sent")},

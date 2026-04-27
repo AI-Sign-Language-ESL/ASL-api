@@ -4,6 +4,7 @@ from django.db import transaction
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils.translation import gettext_lazy as _
+from tafahom_api.common.emails import send_branded_verification_email
 import secrets
 
 from tafahom_api.apps.v1.users.models import User
@@ -93,17 +94,11 @@ class BasicUserRegistrationSerializer(
             role="basic_user",
         )
 
-        # ✉️ SEND VERIFICATION CODE
+        # ✉️ SEND BRANDED VERIFICATION CODE
         code = "".join([secrets.choice("0123456789") for _ in range(6)])
         EmailVerificationCode.objects.create(user=user, code=code)
 
-        send_mail(
-            _("Email verification"),
-            _("Your verification code is: {code}").format(code=code),
-            getattr(settings, "DEFAULT_FROM_EMAIL", None),
-            [user.email],
-            fail_silently=True,
-        )
+        send_branded_verification_email(user.email, code)
 
         return user
 
@@ -164,17 +159,11 @@ class OrganizationRegistrationSerializer(
             job_title=validated_data.get("job_title", ""),
         )
 
-        # ✉️ SEND VERIFICATION CODE
+        # ✉️ SEND BRANDED VERIFICATION CODE
         code = "".join([secrets.choice("0123456789") for _ in range(6)])
         EmailVerificationCode.objects.create(user=user, code=code)
 
-        send_mail(
-            _("Email verification"),
-            _("Your verification code is: {code}").format(code=code),
-            getattr(settings, "DEFAULT_FROM_EMAIL", None),
-            [user.email],
-            fail_silently=True,
-        )
+        send_branded_verification_email(user.email, code)
 
         return user
 
