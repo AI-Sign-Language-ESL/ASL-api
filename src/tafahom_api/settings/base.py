@@ -70,15 +70,19 @@ CHANNELS_ALLOWED_HOSTS = ALLOWED_HOSTS
 # CACHING
 # =============================================================================
 CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}",
-        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
-        "KEY_PREFIX": "tafahom",
-        "TIMEOUT": 300,
-    }
-    if ENVIRONMENT == "PROD"
-    else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "unique-snowflake"}
+    "default": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}/1",
+            "KEY_PREFIX": "tafahom",
+            "TIMEOUT": 300,
+        }
+        if ENVIRONMENT == "PROD"
+        else {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-snowflake",
+        }
+    )
 }
 # =============================================================================
 # APPLICATIONS
