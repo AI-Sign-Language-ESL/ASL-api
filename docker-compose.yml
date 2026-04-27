@@ -59,8 +59,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@tafahom.com
       PGADMIN_DEFAULT_PASSWORD: admin123
-      PGADMIN_CONFIG_SERVER_MODE: 'True'
-      PGADMIN_CONFIG_APPLICATION_ROOT: /pgadmin # 🔥 REQUIRED
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_CONFIG_APPLICATION_ROOT: "/pgadmin"
     ports:
       - "5050:80"
     depends_on:
