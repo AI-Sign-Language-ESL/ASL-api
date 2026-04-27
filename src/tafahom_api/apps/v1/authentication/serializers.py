@@ -154,3 +154,22 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     token = serializers.CharField()
     new_password = serializers.CharField(min_length=6)
+
+
+# =========================
+# ✉️ EMAIL VERIFICATION
+# =========================
+
+
+class EmailVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6, min_length=6)
+
+    def validate_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError(_("Verification code must be numeric."))
+        return value
+
+
+class EmailResendSerializer(serializers.Serializer):
+    email = serializers.EmailField()

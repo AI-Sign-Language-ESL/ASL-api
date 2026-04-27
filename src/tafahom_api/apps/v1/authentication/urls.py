@@ -37,4 +37,11 @@ urlpatterns = [
         views.AllLoginAttemptsView.as_view(),
         name="all-login-attempts",
     ),
+    # Email Verification
+    path("verify-email/", views.VerifyEmailView.as_view(), name="verify-email"),
+    path(
+        "resend-code/",
+        views.ResendVerificationCodeView.as_view(),
+        name="resend-verification-code",
+    ),
 ]

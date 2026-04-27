@@ -372,3 +372,87 @@ class PasswordResetConfirmView(APIView):
             {"detail": _("Password reset successful")},
             status=status.HTTP_200_OK,
         )
+
+
+# =====================================================
+# ✉️ EMAIL VERIFICATION
+# =====================================================
+
+
+class VerifyEmailView(APIView):
+    permission_classes = [AllowAny]
+    serializer_class = serializers.EmailVerificationSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response(
+                {"detail": _("User not found")},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        verification = models.EmailVerificationCode.objects.filter(
+            user=user,
+            code=code,
+            used=False,
+        ).first()
+
+        if not verification or verification.is_expired():
+            return Response(
+                {"detail": _("Invalid or expired code")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+
+        verification.used = True
+        verification.save(update_fields=["used"])
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "message": _("Email verified successfully"),
+                "user": UserResponseSerializer(user).data,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResendVerificationCodeView(APIView):
+    permission_classes = [AllowAny]
+    serializer_class = serializers.EmailResendSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        user = User.objects.filter(email__iexact=email).first()
+
+        if user:
+            # Generate new 6-digit code
+            code = "".join([secrets.choice("0123456789") for _ in range(6)])
+            models.EmailVerificationCode.objects.create(user=user, code=code)
+
+            send_mail(
+                _("Email verification"),
+                _("Your verification code is: {code}").format(code=code),
+                getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                [user.email],
+                fail_silently=True,
+            )
+
+        return Response(
+            {"detail": _("If the email exists, a new code was sent")},
+            status=status.HTTP_200_OK,
+        )

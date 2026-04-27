@@ -15,6 +15,7 @@ class User(AbstractUser):
         null=True,
         blank=True,
     )
+    is_verified = models.BooleanField(default=False)
 
     class Meta:
         db_table = "users"

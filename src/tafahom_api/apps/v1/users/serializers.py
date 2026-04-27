@@ -1,9 +1,14 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils.translation import gettext_lazy as _
+import secrets
 
 from tafahom_api.apps.v1.users.models import User
 from .models import Organization
+from tafahom_api.apps.v1.authentication.models import EmailVerificationCode
 
 
 # ======================================================
@@ -75,10 +80,11 @@ class BasicUserRegistrationSerializer(
 
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         self._pop_confirmation_fields(validated_data)
 
-        return User.objects.create_user(
+        user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"],
@@ -86,6 +92,20 @@ class BasicUserRegistrationSerializer(
             last_name=validated_data["last_name"],
             role="basic_user",
         )
+
+        # ✉️ SEND VERIFICATION CODE
+        code = "".join([secrets.choice("0123456789") for _ in range(6)])
+        EmailVerificationCode.objects.create(user=user, code=code)
+
+        send_mail(
+            _("Email verification"),
+            _("Your verification code is: {code}").format(code=code),
+            getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            [user.email],
+            fail_silently=True,
+        )
+
+        return user
 
 
 # ======================================================
@@ -142,6 +162,18 @@ class OrganizationRegistrationSerializer(
             organization_name=validated_data["organization_name"],
             activity_type=validated_data["activity_type"],
             job_title=validated_data.get("job_title", ""),
+        )
+
+        # ✉️ SEND VERIFICATION CODE
+        code = "".join([secrets.choice("0123456789") for _ in range(6)])
+        EmailVerificationCode.objects.create(user=user, code=code)
+
+        send_mail(
+            _("Email verification"),
+            _("Your verification code is: {code}").format(code=code),
+            getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            [user.email],
+            fail_silently=True,
         )
 
         return user
