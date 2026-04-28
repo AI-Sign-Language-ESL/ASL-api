@@ -31,7 +31,7 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             await self.close(code=4003)
             return
 
-        # Consume tokens (50 tokens per meeting)
+        # Consume tokens (10 tokens per meeting)
         consumed = await self._consume_tokens()
         if not consumed:
             await self.close(code=4003)
@@ -66,7 +66,7 @@ class MeetingConsumer(AsyncWebsocketConsumer):
         # Send confirmation to user
         await self.send(text_data=json.dumps({
             "type": "connection_established",
-            "message": f"Welcome to meeting {self.meeting_code}. 50 tokens deducted.",
+            "message": f"Welcome to meeting {self.meeting_code}. 10 tokens deducted.",
             "user": self.user.username
         }))
 
@@ -161,20 +161,20 @@ class MeetingConsumer(AsyncWebsocketConsumer):
         from tafahom_api.apps.v1.billing.models import Subscription
         try:
             subscription = Subscription.objects.get(user=self.user)
-            if subscription.remaining_tokens() < 50:
-                return False, "Insufficient tokens. Need 50 tokens to join meeting."
+            if subscription.remaining_tokens() < 10:
+                return False, "Insufficient tokens. Need 10 tokens to join meeting."
             return True, None
         except Subscription.DoesNotExist:
             return False, "Subscription not found"
 
     @database_sync_to_async
     def _consume_tokens(self):
-        """Deduct 50 tokens for meeting"""
+        """Deduct 10 tokens for meeting"""
         from tafahom_api.apps.v1.billing.models import Subscription
         from tafahom_api.apps.v1.billing.services import consume_meeting_token
         try:
             subscription = Subscription.objects.get(user=self.user)
-            return consume_meeting_token(subscription, amount=50)
+            return consume_meeting_token(subscription, amount=10)
         except Exception:
             return False
 
