@@ -34,3 +34,13 @@ def consume_translation_token(subscription, amount=10):
 
 def consume_generation_token(subscription, amount=10):
     return consume_tokens(subscription, amount=amount, token_type="generation")
+
+def reward_dataset_contribution(subscription, tokens=10):
+    """
+    Reward a user with tokens for contributing to the dataset.
+    """
+    from django.db import transaction
+    with transaction.atomic():
+        subscription.tokens_used = max(0, subscription.tokens_used - tokens)
+        subscription.save(update_fields=["tokens_used"])
+    return True
