@@ -48,6 +48,7 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.23
 pydub==0.25.1
+yt-dlp==2025.4.30
 Pygments==2.19.2
 PyJWT==2.10.1
 pyOpenSSL==25.3.0

@@ -20,6 +20,7 @@ urlpatterns = [
     path("status/<int:pk>/", views.TranslationStatusView.as_view()),
 
     path("speech-to-text/", views.SpeechToTextView.as_view()),
+    path("youtube-translate/", views.YouTubeTranslateView.as_view(), name="youtube-translate"),
 
 ]
 ####

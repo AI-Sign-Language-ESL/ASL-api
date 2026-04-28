@@ -1,7 +1,11 @@
 import asyncio
 import logging
+import os
+import subprocess
+import httpx
 
 from asgiref.sync import async_to_sync
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import generics, status
@@ -17,6 +21,7 @@ from .serializers import (
     SignLanguageConfigSerializer,
     TranslationRequestListSerializer,
 )
+from .services.youtube_service import download_youtube_audio
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
@@ -194,6 +199,123 @@ class TranslateToSignView(generics.GenericAPIView):
             {
                 "id": translation.id,
                 "status": translation.status,
+                "video": video_url,
+                "remaining_tokens": subscription.remaining_tokens(),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+# =====================================================
+# 📺 YOUTUBE → SIGN LANGUAGE VIDEO
+# =====================================================
+
+
+class YouTubeTranslateView(APIView):
+    """
+    YouTube URL → Extract Audio → Speech-to-Text → Text-to-Sign → Sign Video
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=15, min_plan="basic", feature_name="YouTube Translation")
+    def post(self, request):
+        youtube_url = request.data.get("youtube_url")
+        if not youtube_url:
+            return Response(
+                {"detail": _("YouTube URL is required")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        subscription = request.subscription
+
+        # 1️⃣ Download audio from YouTube
+        try:
+            audio_path = download_youtube_audio(youtube_url)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 2️⃣ Speech-to-Text (extract spoken text)
+        wav_path = None
+        try:
+            # Convert to WAV using ffmpeg
+            wav_path = audio_path.replace(".mp3", ".wav")
+            subprocess.run(
+                ["ffmpeg", "-i", audio_path, "-ar", "16000", "-ac", "1", "-y", wav_path],
+                capture_output=True,
+                timeout=30,
+            )
+
+            with open(wav_path, "rb") as f:
+                wav_data = f.read()
+
+            # Call STT service
+            stt_client = SpeechToTextClient()
+            files = {"file": ("audio.wav", wav_data, "audio/wav")}
+            data = {"language": "ar", "task": "transcribe"}
+
+            response = httpx.post(
+                stt_client.base_url + "/",
+                files=files,
+                data=data,
+                timeout=60,
+            )
+            response.raise_for_status()
+            transcribed_text = response.json().get("text", "")
+
+            if not transcribed_text:
+                return Response(
+                    {"detail": _("No speech detected in the video")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        except Exception as e:
+            return Response(
+                {"detail": _("Failed to transcribe audio: ") + str(e)},
+                status=status.HTTP_500_INTERNAL_ERROR,
+            )
+        finally:
+            # Cleanup temp files
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
+            if wav_path and os.path.exists(wav_path):
+                os.remove(wav_path)
+
+        # 3️⃣ Text-to-Sign (generate sign language video)
+        try:
+            ai_result = asyncio.run(TranslationPipelineService.text_to_sign(transcribed_text))
+            gloss_tokens = ai_result["gloss"]
+
+            video_url = generate_sign_video_from_gloss(gloss_tokens)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 4️⃣ Save + Consume Tokens
+        with transaction.atomic():
+            consume_generation_token(subscription, amount=15)
+
+            translation = TranslationRequest.objects.create(
+                user=request.user,
+                direction="youtube_to_sign",
+                input_type="youtube_url",
+                input_text=youtube_url,
+                output_type="video",
+                output_text=transcribed_text,
+                output_video=video_url,
+                status="completed",
+                tokens_used=15,
+            )
+
+        return Response(
+            {
+                "id": translation.id,
+                "status": translation.status,
+                "transcribed_text": transcribed_text,
                 "video": video_url,
                 "remaining_tokens": subscription.remaining_tokens(),
             },
