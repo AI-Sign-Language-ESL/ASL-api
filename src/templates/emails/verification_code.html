@@ -22,14 +22,26 @@
         }
         .header {
             background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-            padding: 40px 20px;
+            padding: 36px 20px;
             text-align: center;
         }
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
         .logo {
-            max-width: 150px;
-            height: auto;
-            display: block;
-            margin: 0 auto;
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+        }
+        .brand-name {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #ffffff;
+            text-transform: uppercase;
+            margin: 0;
         }
         .content {
             padding: 40px 30px;
@@ -76,7 +88,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="cid:tafahom_logo" alt="TAFAHOM Logo" class="logo">
+            <div class="brand">
+                <img src="cid:tafahom_logo" alt="TAFAHOM Logo" class="logo">
+                <span class="brand-name">TAFAHOM</span>
+            </div>
         </div>
         <div class="content">
             <h2>Verify Your Email</h2>
