@@ -11,8 +11,11 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: tafahom_api.settings
       ENVIRONMENT: PROD
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD
     command: >
-      sh -c "python manage.py migrate && python manage.py setup_plans && python manage.py award_weekly_tokens && daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application"
+      sh -c "python manage.py migrate && python manage.py setup_plans && python manage.py award_weekly_tokens && python manage.py createsuperuser --noinput || true && daphne -b 0.0.0.0 -p 8000 tafahom_api.asgi:application"
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
@@ -77,12 +80,7 @@ services:
     network_mode: "host"
     restart: unless-stopped
     command: >
-      -n --log-file=stdout
-      --min-port=49152 --max-port=65535
-      --realm=tafahom.com
-      --user=tafahom_admin:StrongPassword123
-      --lt-cred-mech
-      --external-ip=72.62.145.111
+      -n --log-file=stdout --min-port=49152 --max-port=65535 --realm=tafahom.com --user=tafahom_admin:StrongPassword123 --lt-cred-mech --external-ip=72.62.145.111
 
 # =========================
 # Volumes
