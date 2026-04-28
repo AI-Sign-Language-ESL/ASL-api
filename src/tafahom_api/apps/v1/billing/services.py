@@ -1,55 +1,36 @@
+"""
+Billing services for token consumption
+"""
 from django.db import transaction
-from django.db.models import F
-from .models import TokenTransaction
-from tafahom_api.common.decorators import TOKEN_COSTS
+from .models import Subscription
+from tafahom_api.common.enums import SUBSCRIPTION_STATUS
 
 
-def consume_translation_token(subscription, amount=None):
+def consume_tokens(subscription, amount=1, token_type="translation"):
     """
-    Consumes tokens from the subscription and logs the transaction.
-    Uses TOKEN_COSTS if amount not specified.
+    Consume tokens from a subscription.
+    Returns True if successful, False if insufficient tokens.
     """
-    actual_amount = amount if amount is not None else TOKEN_COSTS.get("translation", 5)
+    if not subscription.can_consume(amount):
+        return False
+
     with transaction.atomic():
-        subscription.consume(actual_amount)
-
-        TokenTransaction.objects.create(
-            user=subscription.user,
-            subscription=subscription,
-            amount=-actual_amount,
-            transaction_type="used",
-            reason="Translation request",
-        )
+        subscription.tokens_used += amount
+        subscription.save(update_fields=["tokens_used"])
+    return True
 
 
-def consume_generation_token(subscription, amount=None):
-    actual_amount = amount if amount is not None else TOKEN_COSTS.get("generation", 10)
-    with transaction.atomic():
-        subscription.consume(actual_amount)
-
-        TokenTransaction.objects.create(
-            user=subscription.user,
-            subscription=subscription,
-            amount=-actual_amount,
-            transaction_type="used",
-            reason="Generation request",
-        )
-
-
-def reward_dataset_contribution(subscription, tokens=10):
+def consume_meeting_token(subscription, amount=50):
     """
-    Adds bonus tokens safely avoiding race conditions.
+    Consume 50 tokens for joining a meeting.
+    Returns True if successful, False if insufficient tokens.
     """
-    with transaction.atomic():
-        subscription.bonus_tokens = F("bonus_tokens") + tokens
-        subscription.save(update_fields=["bonus_tokens"])
+    return consume_tokens(subscription, amount=amount, token_type="meeting")
 
-        subscription.refresh_from_db()
 
-        TokenTransaction.objects.create(
-            user=subscription.user,
-            subscription=subscription,
-            amount=tokens,
-            transaction_type="earned",
-            reason="Dataset contribution approved",
-        )
+def consume_translation_token(subscription, amount=10):
+    return consume_tokens(subscription, amount=amount, token_type="translation")
+
+
+def consume_generation_token(subscription, amount=10):
+    return consume_tokens(subscription, amount=amount, token_type="generation")

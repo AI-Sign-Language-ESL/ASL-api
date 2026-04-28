@@ -68,6 +68,22 @@ services:
       - postgres
     restart: unless-stopped
 
+  # =========================
+  # Coturn (WebRTC TURN Server)
+  # =========================
+  coturn:
+    image: coturn/coturn
+    container_name: tafahom-turn
+    network_mode: "host"
+    restart: unless-stopped
+    command: >
+      -n --log-file=stdout
+      --min-port=49152 --max-port=65535
+      --realm=tafahom.com
+      --user=tafahom_admin:StrongPassword123
+      --lt-cred-mech
+      --external-ip=72.62.145.111
+
 # =========================
 # Volumes
 # =========================
