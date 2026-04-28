@@ -154,6 +154,12 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     token = serializers.CharField()
     new_password = serializers.CharField(min_length=6)
+    confirm_password = serializers.CharField(min_length=6)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(_("Passwords do not match"))
+        return attrs
 
 
 # =========================

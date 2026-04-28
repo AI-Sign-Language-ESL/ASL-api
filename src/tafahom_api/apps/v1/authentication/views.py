@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.mail import send_mail
-from tafahom_api.common.emails import send_branded_verification_email
+from tafahom_api.common.emails import send_branded_verification_email, send_password_reset_email
 
 from rest_framework import status, generics
 from rest_framework.views import APIView
@@ -317,27 +317,10 @@ class PasswordResetRequestView(APIView):
             token = secrets.token_urlsafe(32)
             models.PasswordResetToken.objects.create(user=user, token=token)
 
-            frontend_base = getattr(settings, "FRONTEND_URL", "")
-            reset_link = (
-                f"{frontend_base.rstrip('/')}/reset-password?token={token}"
-                if frontend_base
-                else request.build_absolute_uri(
-                    f"/password-reset/confirm/?token={token}"
-                )
-            )
-
-            send_mail(
-                _("Password reset request"),
-                _("Reset your password using this link:\n\n{link}").format(
-                    link=reset_link
-                ),
-                getattr(settings, "DEFAULT_FROM_EMAIL", None),
-                [user.email],
-                fail_silently=True,
-            )
+            send_password_reset_email(user.email, token)
 
         return Response(
-            {"detail": _("If the email exists, a reset link was sent")},
+            {"detail": _("If the email exists, a reset token was sent")},
             status=status.HTTP_200_OK,
         )
 
