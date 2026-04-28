@@ -7,5 +7,10 @@ class BillingConfig(AppConfig):
     label = "billing"
 
     def ready(self):
-        # Implicitly connect signal handlers when the app is ready
-        import tafahom_api.apps.v1.billing.signals  # noqa
+        import tafahom_api.apps.v1.billing.signals
+        
+        from django.db.models.signals import post_migrate
+        from tafahom_api.apps.v1.billing.seeds import seed_subscription_plans
+        
+        post_migrate.connect(lambda sender, **kwargs: seed_subscription_plans(), sender=self)
+    

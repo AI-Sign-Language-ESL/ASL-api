@@ -59,7 +59,16 @@ class LoginView(generics.GenericAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # 🔐 2FA check
+        if not user.is_verified:
+            return Response(
+                {
+                    "requires_verification": True,
+                    "user_id": user.id,
+                    "detail": _("Please verify your email before logging in"),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         two_fa = getattr(user, "two_factor_auth", None)
         if two_fa and two_fa.is_enabled:
             return Response(
