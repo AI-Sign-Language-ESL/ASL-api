@@ -76,7 +76,7 @@ class Subscription(models.Model):
             self.save(update_fields=["tokens_used", "last_reset"])
 
     def total_tokens(self):
-        return self.plan.weekly_tokens_limit + self.bonus_tokens
+        return self.plan.weekly_tokens_limit
 
     def remaining_tokens(self):
         self.reset_if_needed()
