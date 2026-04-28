@@ -157,12 +157,10 @@ class MeetingConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _check_access(self):
-        """Check if user has GO plan and sufficient tokens"""
+        """Check if user has sufficient tokens"""
         from tafahom_api.apps.v1.billing.models import Subscription
         try:
             subscription = Subscription.objects.get(user=self.user)
-            if subscription.plan.plan_type == 'free':
-                return False, "GO plan required for meetings"
             if subscription.remaining_tokens() < 50:
                 return False, "Insufficient tokens. Need 50 tokens to join meeting."
             return True, None
