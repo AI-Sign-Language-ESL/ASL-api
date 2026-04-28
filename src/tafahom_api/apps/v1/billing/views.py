@@ -105,6 +105,26 @@ class CancelSubscriptionView(generics.GenericAPIView):
         )
 
 
+@extend_schema(request=None, responses={200: None})
+class ToggleAutoRenewalView(generics.GenericAPIView):
+    """Toggle auto-renewal on or off for the current user's subscription."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        subscription = getattr(request.user, "subscription", None)
+        if not subscription:
+            return Response(
+                {"detail": "No active subscription found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        subscription.auto_renewal = not subscription.auto_renewal
+        subscription.save(update_fields=["auto_renewal"])
+        return Response(
+            {"auto_renewal": subscription.auto_renewal},
+            status=status.HTTP_200_OK,
+        )
+
+
 class MyTokensView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.UserTokensSerializer
@@ -127,6 +147,8 @@ class MyTokensView(generics.GenericAPIView):
         }
 
         return Response(data, status=status.HTTP_200_OK)
+
+
 class TokenUsageAnalyticsView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -136,8 +158,7 @@ class TokenUsageAnalyticsView(generics.GenericAPIView):
             return Response({"detail": "No subscription found"}, status=status.HTTP_404_NOT_FOUND)
 
         transactions = models.TokenTransaction.objects.filter(subscription=subscription).order_by("-created_at")[:50]
-        
-        # Simple aggregation for analytics
+
         usage_by_reason = {}
         for tx in transactions:
             if tx.amount < 0:

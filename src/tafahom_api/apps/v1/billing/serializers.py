@@ -30,6 +30,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "plan",
             "status",
             "billing_period",
+            "auto_renewal",
             "end_date",
             "start_date",
             "last_reset",

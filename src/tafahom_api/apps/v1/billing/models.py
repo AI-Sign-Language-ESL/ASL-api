@@ -54,6 +54,7 @@ class Subscription(models.Model):
         choices=[("monthly", "Monthly"), ("yearly", "Yearly")],
         default="monthly",
     )
+    auto_renewal = models.BooleanField(default=True)
 
     end_date = models.DateTimeField(null=True, blank=True)
     start_date = models.DateTimeField(default=timezone.now)

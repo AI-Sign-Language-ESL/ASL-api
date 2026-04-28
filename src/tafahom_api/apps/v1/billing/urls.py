@@ -25,6 +25,11 @@ urlpatterns = [
         views.CancelSubscriptionView.as_view(),
         name="cancel-subscription",
     ),
+    path(
+        "toggle-auto-renewal/",
+        views.ToggleAutoRenewalView.as_view(),
+        name="toggle-auto-renewal",
+    ),
     # 🆕 Tokens
     path(
         "me/tokens/",
