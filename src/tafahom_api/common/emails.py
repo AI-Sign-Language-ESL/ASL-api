@@ -1,23 +1,36 @@
-from django.core.mail import send_mail
+import os
+from email.mime.image import MIMEImage
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
+
 def send_branded_verification_email(user_email, code):
     """
-    Sends a premium HTML verification email to the user.
+    Sends a premium HTML verification email with an inline logo.
     """
-    subject = _("Verify your TAFAHOM account")
+    subject = str(_("Verify your TAFAHOM account"))
     html_message = render_to_string('emails/verification_code.html', {'code': code})
     plain_message = strip_tags(html_message)
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "webmaster@localhost")
-    
-    return send_mail(
-        subject,
-        plain_message,
-        from_email,
-        [user_email],
-        html_message=html_message,
-        fail_silently=True
+
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=plain_message,
+        from_email=from_email,
+        to=[user_email],
     )
+    email.attach_alternative(html_message, "text/html")
+
+    # Attach logo as inline image (CID)
+    logo_path = os.path.join(settings.BASE_DIR, 'templates', 'emails', 'tafahom-logo.png')
+    if os.path.exists(logo_path):
+        with open(logo_path, 'rb') as f:
+            logo = MIMEImage(f.read())
+            logo.add_header('Content-ID', '<tafahom_logo>')
+            logo.add_header('Content-Disposition', 'inline', filename='tafahom-logo.png')
+            email.attach(logo)
+
+    email.send(fail_silently=True)
