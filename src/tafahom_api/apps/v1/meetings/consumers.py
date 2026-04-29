@@ -10,29 +10,36 @@ User = get_user_model()
 class MeetingConsumer(AsyncWebsocketConsumer):
     """
     WebSocket for meetings.
-    - Requires GO plan
-    - Consumes 50 tokens on join
+    - Allows all plans (free/GO)
+    - Consumes 10 tokens on join
     - Supports WebRTC, chat, text-to-sign, speech-to-text
     """
 
     async def connect(self):
+        import logging
+        logger = logging.getLogger(__name__)
+        
         self.user = self.scope["user"]
+        logger.info(f"WebSocket connect attempt - user: {self.user}, anonymous: {self.user.is_anonymous}")
 
         # Reject unauthenticated
         if self.user.is_anonymous:
+            logger.warning(f"WebSocket rejected - anonymous user")
             await self.close(code=4001)
             return
 
-        # Check plan and tokens
+        # Check plan and tokens (allow free plan, 10 tokens per meeting)
         allowed, message = await self._check_access()
+        logger.info(f"Access check - allowed: {allowed}, message: {message}")
         if not allowed:
             await self.accept()
             await self.send(text_data=json.dumps({"type": "error", "message": message}))
             await self.close(code=4003)
             return
 
-        # Consume tokens (50 tokens per meeting)
+        # Consume tokens (10 tokens per meeting for all plans)
         consumed = await self._consume_tokens()
+        logger.info(f"Token consumption - consumed: {consumed}")
         if not consumed:
             await self.close(code=4003)
             return
@@ -40,21 +47,24 @@ class MeetingConsumer(AsyncWebsocketConsumer):
         # Join meeting room group
         self.meeting_code = self.scope["url_route"]["kwargs"]["code"]
         self.room_group_name = f"meeting_{self.meeting_code}"
+        logger.info(f"Joining room: {self.room_group_name}")
 
         # Verify meeting exists and is active
         meeting = await self._get_meeting(self.meeting_code)
         if not meeting or not meeting.is_active:
+            logger.warning(f"Meeting not found or inactive: {self.meeting_code}")
             await self.close(code=4004)
             return
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        logger.info(f"WebSocket connected successfully to {self.room_group_name}")
 
         # Send existing participants to the new user
         existing_participants = await self._get_participants(meeting)
         await self.send(text_data=json.dumps({
             "type": "connection_established",
-            "message": f"Welcome to meeting {self.meeting_code}. 50 tokens deducted.",
+            "message": f"Welcome to meeting {self.meeting_code}. 10 tokens deducted.",
             "user": self.user.username,
             "participants": existing_participants
         }))
@@ -190,26 +200,24 @@ class MeetingConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _check_access(self):
-        """Check if user has GO plan and sufficient tokens"""
+        """Check if user has sufficient tokens (allow all plans)"""
         from tafahom_api.apps.v1.billing.models import Subscription
         try:
             subscription = Subscription.objects.get(user=self.user)
-            if subscription.plan.plan_type == 'free':
-                return False, "GO plan required for meetings"
-            if subscription.remaining_tokens() < 50:
-                return False, "Insufficient tokens. Need 50 tokens to join meeting."
+            if subscription.remaining_tokens() < 10:
+                return False, "Insufficient tokens. Need 10 tokens to join meeting."
             return True, None
         except Subscription.DoesNotExist:
             return False, "Subscription not found"
 
     @database_sync_to_async
     def _consume_tokens(self):
-        """Deduct 50 tokens for meeting"""
+        """Deduct 10 tokens for meeting"""
         from tafahom_api.apps.v1.billing.models import Subscription
         from tafahom_api.apps.v1.billing.services import consume_meeting_token
         try:
             subscription = Subscription.objects.get(user=self.user)
-            return consume_meeting_token(subscription, amount=50)
+            return consume_meeting_token(subscription, amount=10)
         except Exception:
             return False
 

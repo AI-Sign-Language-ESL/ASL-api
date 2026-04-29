@@ -67,7 +67,9 @@ class JWTAuthMiddleware(BaseMiddleware):
         # --------------------------------------------------
         if not token_str:
             query_string = scope.get("query_string", b"").decode()
+            logger.info(f"WebSocket query string: {query_string}")
             token_str = parse_qs(query_string).get("token", [None])[0]
+            logger.info(f"WebSocket token from query: {token_str}")
 
         # --------------------------------------------------
         # 4. Validate & Authenticate
