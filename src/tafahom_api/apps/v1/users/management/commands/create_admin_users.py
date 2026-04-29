@@ -9,19 +9,13 @@ class Command(BaseCommand):
     help = 'Create admin and supervisor users from environment variables'
 
     def handle(self, *args, **options):
-        # ===== Admin ENV =====
         admin_username = (os.getenv('DJANGO_SUPERUSER_USERNAME') or 'admin').strip()
         admin_email = (os.getenv('DJANGO_SUPERUSER_EMAIL') or 'admin@tafahom.io').strip()
         admin_password = os.getenv('DJANGO_SUPERUSER_PASSWORD') or 'admin123'
 
-        # ===== Supervisor ENV (optional but better) =====
-        supervisor_username = (os.getenv('SUPERVISOR_USERNAME') or 'supervisor').strip()
-        supervisor_email = (os.getenv('SUPERVISOR_EMAIL') or 'supervisor@tafahom.io').strip()
-        supervisor_password = os.getenv('SUPERVISOR_PASSWORD') or 'supervisor123'
+        if not admin_username:
+            admin_username = 'admin'
 
-        # =========================
-        # Create / Update Admin
-        # =========================
         admin, _ = User.objects.get_or_create(username=admin_username)
 
         admin.email = admin_email
@@ -36,17 +30,14 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'Admin ready: {admin_username}'))
 
-        # =========================
-        # Create / Update Supervisor
-        # =========================
-        supervisor, _ = User.objects.get_or_create(username=supervisor_username)
+        supervisor, _ = User.objects.get_or_create(username='supervisor')
 
-        supervisor.email = supervisor_email
+        supervisor.email = 'supervisor@tafahom.io'
         supervisor.role = 'supervisor'
         supervisor.first_name = 'Supervisor'
         supervisor.last_name = 'User'
         supervisor.is_verified = True
-        supervisor.set_password(supervisor_password)
+        supervisor.set_password('supervisor123')
         supervisor.save()
 
-        self.stdout.write(self.style.SUCCESS(f'Supervisor ready: {supervisor_username}'))
+        self.stdout.write(self.style.SUCCESS('Supervisor ready: supervisor'))
