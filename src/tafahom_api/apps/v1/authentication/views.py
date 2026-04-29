@@ -43,7 +43,7 @@ class LoginView(generics.GenericAPIView):
         user = User.objects.filter(email__iexact=email).first()
         if not user:
             return Response(
-                {"detail": _("Invalid credentials")},
+                {"detail": _("Email or password is wrong")},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
@@ -55,7 +55,7 @@ class LoginView(generics.GenericAPIView):
 
         if not authenticated_user:
             return Response(
-                {"detail": _("Invalid credentials")},
+                {"detail": _("Email or password is wrong")},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
