@@ -31,7 +31,7 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             await self.close(code=4003)
             return
 
-        # Consume tokens (10 tokens per meeting)
+        # Consume tokens (50 tokens per meeting)
         consumed = await self._consume_tokens()
         if not consumed:
             await self.close(code=4003)
@@ -50,25 +50,30 @@ class MeetingConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
+        # Send existing participants to the new user
+        existing_participants = await self._get_participants(meeting)
+        await self.send(text_data=json.dumps({
+            "type": "connection_established",
+            "message": f"Welcome to meeting {self.meeting_code}. 50 tokens deducted.",
+            "user": self.user.username,
+            "participants": existing_participants
+        }))
+
         # Notify others that user joined
         await self.channel_layer.group_send(
             self.room_group_name,
             {
-                "type": "broadcast",
-                "message": {
-                    "type": "user_joined",
-                    "user": self.user.username,
-                    "role": await self._get_user_role(self.user, meeting),
-                }
+                "type": "websocket.send",
+                "text": json.dumps({
+                    "type": "broadcast",
+                    "message": {
+                        "type": "user_joined",
+                        "user": self.user.username,
+                        "role": await self._get_user_role(self.user, meeting),
+                    }
+                })
             }
         )
-
-        # Send confirmation to user
-        await self.send(text_data=json.dumps({
-            "type": "connection_established",
-            "message": f"Welcome to meeting {self.meeting_code}. 10 tokens deducted.",
-            "user": self.user.username
-        }))
 
     async def disconnect(self, close_code):
         # Notify others that user left
@@ -76,11 +81,14 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    "type": "broadcast",
-                    "message": {
-                        "type": "user_left",
-                        "user": self.user.username,
-                    }
+                    "type": "websocket.send",
+                    "text": json.dumps({
+                        "type": "broadcast",
+                        "message": {
+                            "type": "user_left",
+                            "user": self.user.username,
+                        }
+                    })
                 }
             )
             await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
@@ -95,12 +103,15 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "broadcast",
-                        "message": {
-                            "type": message_type,
-                            "data": data.get("data"),
-                            "user": self.user.username
-                        }
+                        "type": "websocket.send",
+                        "text": json.dumps({
+                            "type": "broadcast",
+                            "message": {
+                                "type": message_type,
+                                "data": data.get("data"),
+                                "user": self.user.username
+                            }
+                        })
                     }
                 )
 
@@ -109,12 +120,15 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "broadcast",
-                        "message": {
-                            "type": "chat",
-                            "message": data.get("message"),
-                            "user": self.user.username
-                        }
+                        "type": "websocket.send",
+                        "text": json.dumps({
+                            "type": "broadcast",
+                            "message": {
+                                "type": "chat",
+                                "message": data.get("message"),
+                                "user": self.user.username
+                            }
+                        })
                     }
                 )
 
@@ -125,12 +139,15 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "broadcast",
-                        "message": {
-                            "type": "sign_result",
-                            "gloss": result.get("gloss"),
-                            "user": self.user.username
-                        }
+                        "type": "websocket.send",
+                        "text": json.dumps({
+                            "type": "broadcast",
+                            "message": {
+                                "type": "sign_result",
+                                "gloss": result.get("gloss"),
+                                "user": self.user.username
+                            }
+                        })
                     }
                 )
 
@@ -140,41 +157,78 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
             client = SpeechToTextClient()
             result = await client.speech_to_text(BytesIO(bytes_data))
+            text = result.get("text", "").strip()
+
+            # Broadcast speech result
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    "type": "broadcast",
-                    "message": {
-                        "type": "speech_result",
-                        "text": result.get("text", ""),
-                        "user": self.user.username
-                    }
+                    "type": "websocket.send",
+                    "text": json.dumps({
+                        "type": "broadcast",
+                        "message": {
+                            "type": "speech_result",
+                            "text": text,
+                            "user": self.user.username
+                        }
+                    })
                 }
             )
 
-    async def broadcast(self, event):
-        await self.send(text_data=json.dumps(event["message"]))
+            # Broadcast speaking status (highlight user if speaking)
+            if text:  # Only if speech detected
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "websocket.send",
+                        "text": json.dumps({
+                            "type": "broadcast",
+                            "message": {
+                                "type": "speaking_start",
+                                "user": self.user.username
+                            }
+                        })
+                    }
+                )
+
+                # Auto-stop highlighting after delay (handled by frontend timeout)
+            else:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "websocket.send",
+                        "text": json.dumps({
+                            "type": "broadcast",
+                            "message": {
+                                "type": "speaking_stop",
+                                "user": self.user.username
+                            }
+                        })
+                    }
+                )
 
     @database_sync_to_async
     def _check_access(self):
-        """Check if user has sufficient tokens"""
+        """Check if user has GO plan and sufficient tokens"""
         from tafahom_api.apps.v1.billing.models import Subscription
         try:
             subscription = Subscription.objects.get(user=self.user)
-            if subscription.remaining_tokens() < 10:
-                return False, "Insufficient tokens. Need 10 tokens to join meeting."
+            if subscription.plan.plan_type == 'free':
+                return False, "GO plan required for meetings"
+            if subscription.remaining_tokens() < 50:
+                return False, "Insufficient tokens. Need 50 tokens to join meeting."
             return True, None
         except Subscription.DoesNotExist:
             return False, "Subscription not found"
 
     @database_sync_to_async
     def _consume_tokens(self):
-        """Deduct 10 tokens for meeting"""
+        """Deduct 50 tokens for meeting"""
         from tafahom_api.apps.v1.billing.models import Subscription
         from tafahom_api.apps.v1.billing.services import consume_meeting_token
         try:
             subscription = Subscription.objects.get(user=self.user)
-            return consume_meeting_token(subscription, amount=10)
+            return consume_meeting_token(subscription, amount=50)
         except Exception:
             return False
 
@@ -189,3 +243,10 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             return participant.role
         except Participant.DoesNotExist:
             return "participant"
+
+    @database_sync_to_async
+    def _get_participants(self, meeting):
+        """Get all participants in the meeting"""
+        return list(
+            meeting.participants.values('id', 'user__username', 'role')
+        )
