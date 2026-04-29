@@ -131,6 +131,7 @@ class BasicUserRegistrationSerializer(
 class OrganizationRegistrationSerializer(
     PasswordConfirmationMixin, serializers.Serializer
 ):
+    username = serializers.CharField(max_length=150)
     organization_name = serializers.CharField(max_length=255)
     activity_type = serializers.CharField(max_length=255)
     email = serializers.EmailField()
@@ -150,8 +151,14 @@ class OrganizationRegistrationSerializer(
         if User.objects.filter(email__iexact=attrs["email"]).exists():
             raise serializers.ValidationError({"email": "Email already exists."})
 
+        if User.objects.filter(username__iexact=attrs["username"]).exists():
+            raise serializers.ValidationError({"username": "Username already exists."})
+
         if PendingRegistration.objects.filter(email=attrs["email"]).exists():
             raise serializers.ValidationError({"email": "Email already pending verification."})
+
+        if PendingRegistration.objects.filter(username=attrs["username"]).exists():
+            raise serializers.ValidationError({"username": "Username already pending verification."})
 
         return attrs
 
@@ -159,21 +166,11 @@ class OrganizationRegistrationSerializer(
     def create(self, validated_data):
         self._pop_confirmation_fields(validated_data)
 
-        base_username = (
-            validated_data["organization_name"].strip().lower().replace(" ", "_")
-        )
-
-        if User.objects.filter(username=base_username).exists():
-            base_username = f"{base_username}_{validated_data['email'].split('@')[0]}"
-
-        if PendingRegistration.objects.filter(username=base_username).exists():
-            base_username = f"{base_username}_{secrets.token_hex(2)}"
-
         code = "".join([secrets.choice("0123456789") for _ in range(6)])
 
         pending = PendingRegistration.objects.create(
             email=validated_data["email"],
-            username=base_username,
+            username=validated_data["username"],
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"],
             password=make_password(validated_data["password"]),
