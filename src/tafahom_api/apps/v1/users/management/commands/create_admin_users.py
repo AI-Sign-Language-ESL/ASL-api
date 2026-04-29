@@ -10,47 +10,59 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Get credentials from environment variables with defaults
-        admin_username = os.getenv('DJANGO_SUPERUSER_USERNAME', 'admin')
-        admin_email = os.getenv('DJANGO_SUPERUSER_EMAIL', 'admin@tafahom.io')
+        admin_username = os.getenv('DJANGO_SUPERUSER_USERNAME', 'admin').strip()
+        admin_email = os.getenv('DJANGO_SUPERUSER_EMAIL', 'admin@tafahom.io').strip()
         admin_password = os.getenv('DJANGO_SUPERUSER_PASSWORD', 'admin123')
 
+        # Ensure username is set
+        if not admin_username:
+            admin_username = 'admin'
+
         # Create admin user
-        if not User.objects.filter(username=admin_username).exists():
-            admin = User.objects.create_superuser(
-                username=admin_username,
-                email=admin_email,
-                password=admin_password,
-                role='admin',
-                first_name='Admin',
-                last_name='User'
-            )
-            admin.is_verified = True
+        admin, created = User.objects.get_or_create(
+            username=admin_username,
+            defaults={
+                'email': admin_email,
+                'role': 'admin',
+                'first_name': 'Admin',
+                'last_name': 'User',
+                'is_verified': True,
+                'is_superuser': True,
+                'is_staff': True,
+            }
+        )
+        
+        if created:
+            admin.set_password(admin_password)
             admin.save()
             self.stdout.write(self.style.SUCCESS(f'Created admin user: {admin_username} / {admin_password}'))
         else:
-            admin = User.objects.get(username=admin_username)
             admin.is_verified = True
+            admin.is_superuser = True
+            admin.is_staff = True
             admin.save()
-            self.stdout.write(f'Admin user {admin_username} already exists (marked as verified)')
+            self.stdout.write(f'Admin user {admin_username} already exists (updated as verified/superuser)')
 
-        # Create supervisor user (fixed credentials)
-        if not User.objects.filter(username='supervisor').exists():
-            supervisor = User.objects.create_user(
-                username='supervisor',
-                email='supervisor@tafahom.io',
-                password='supervisor123',
-                role='supervisor',
-                first_name='Supervisor',
-                last_name='User'
-            )
-            supervisor.is_verified = True
+        # Create supervisor user
+        supervisor, created = User.objects.get_or_create(
+            username='supervisor',
+            defaults={
+                'email': 'supervisor@tafahom.io',
+                'role': 'supervisor',
+                'first_name': 'Supervisor',
+                'last_name': 'User',
+                'is_verified': True,
+            }
+        )
+        
+        if created:
+            supervisor.set_password('supervisor123')
             supervisor.save()
             self.stdout.write(self.style.SUCCESS('Created supervisor user: supervisor / supervisor123'))
         else:
-            supervisor = User.objects.get(username='supervisor')
             supervisor.is_verified = True
             supervisor.save()
-            self.stdout.write('Supervisor user already exists (marked as verified)')
+            self.stdout.write('Supervisor user already exists (updated as verified)')
 
         self.stdout.write(self.style.WARNING('\nCredentials:'))
         self.stdout.write(f'Admin: username={admin_username}, password={admin_password}')
