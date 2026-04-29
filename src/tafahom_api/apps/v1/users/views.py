@@ -24,12 +24,12 @@ class BasicUserRegistrationView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = serializer.save()
+        pending = serializer.save()
 
         return Response(
             {
-                "message": "Registration successful. Please verify your email with the code sent to your inbox.",
-                "user_id": user.id,
+                "message": "Registration initiated. Please verify your email with the code sent to your inbox.",
+                "email": pending.email,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -48,12 +48,12 @@ class OrganizationRegistrationView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = serializer.save()
+        pending = serializer.save()
 
         return Response(
             {
-                "message": "Registration successful. Please verify your email with the code sent to your inbox.",
-                "user_id": user.id,
+                "message": "Registration initiated. Please verify your email with the code sent to your inbox.",
+                "email": pending.email,
             },
             status=status.HTTP_201_CREATED,
         )

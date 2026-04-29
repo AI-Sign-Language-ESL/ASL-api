@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.hashers import make_password, check_password
 from datetime import timedelta
 import secrets
 import pyotp
@@ -159,3 +160,71 @@ class EmailVerificationCode(models.Model):
 
     def is_expired(self):
         return timezone.now() > self.created_at + timezone.timedelta(minutes=15)
+
+
+class PendingRegistration(models.Model):
+    REGISTRATION_TYPES = [
+        ('basic', 'Basic User'),
+        ('organization', 'Organization'),
+    ]
+
+    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=150, unique=True)
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30)
+    password = models.CharField(max_length=128)
+    registration_type = models.CharField(max_length=20, choices=REGISTRATION_TYPES)
+
+    organization = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="pending_members",
+        limit_choices_to={"role": "organization"},
+    )
+
+    organization_name = models.CharField(max_length=255, blank=True, default='')
+    activity_type = models.CharField(max_length=255, blank=True, default='')
+    job_title = models.CharField(max_length=255, blank=True, default='')
+
+    verification_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "pending_registrations"
+        verbose_name = _("Pending Registration")
+        verbose_name_plural = _("Pending Registrations")
+
+    def __str__(self):
+        return f"Pending: {self.email} - {self.registration_type}"
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timezone.timedelta(minutes=15)
+
+    def create_user(self):
+        from tafahom_api.apps.v1.users.models import User, Organization
+
+        user = User.objects.create(
+            username=self.username,
+            email=self.email,
+            password=self.password,  # Already hashed from make_password
+            first_name=self.first_name,
+            last_name=self.last_name,
+            role="organization" if self.registration_type == "organization" else "basic_user",
+            organization=self.organization,
+        )
+
+        if self.registration_type == "organization":
+            Organization.objects.create(
+                user=user,
+                organization_name=self.organization_name,
+                activity_type=self.activity_type,
+                job_title=self.job_title,
+            )
+
+        self.is_verified = True
+        self.save(update_fields=["is_verified"])
+
+        return user

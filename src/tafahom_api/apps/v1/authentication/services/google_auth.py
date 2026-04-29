@@ -23,6 +23,7 @@ def authenticate_with_google(token: str):
         defaults={
             "username": email.split("@")[0],
             "google_id": google_id,
+            "role": "basic_user",  # ✅ Force basic_user for Google sign-ups
         },
     )
 
@@ -34,5 +35,9 @@ def authenticate_with_google(token: str):
     # ❌ Prevent hijacking
     if not created and user.google_id != google_id:
         raise ValueError("This account is not linked to this Google account")
+
+    # ✅ RESTRICT: Only allow basic_user role
+    if user.role != "basic_user":
+        raise ValueError("Google Sign-In is only available for Basic Users")
 
     return user

@@ -22,6 +22,7 @@ from tafahom_api.apps.v1.users.serializers import UserResponseSerializer
 
 from . import models, serializers
 from .services.google_auth import authenticate_with_google
+from tafahom_api.apps.v1.users.serializers import BasicUserRegistrationSerializer, OrganizationRegistrationSerializer
 
 
 # =====================================================
@@ -142,7 +143,14 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = authenticate_with_google(token)
+        try:
+            user = authenticate_with_google(token)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         refresh = RefreshToken.for_user(user)
 
         return Response(
@@ -383,11 +391,33 @@ class VerifyEmailView(APIView):
         email = serializer.validated_data["email"]
         code = serializer.validated_data["code"]
 
+        pending = models.PendingRegistration.objects.filter(
+            email__iexact=email,
+            verification_code=code,
+            is_verified=False,
+        ).first()
+
+        if pending and not pending.is_expired():
+            user = pending.create_user()
+            pending.delete()
+
+            refresh = RefreshToken.for_user(user)
+
+            return Response(
+                {
+                    "message": _("Email verified successfully"),
+                    "user": UserResponseSerializer(user).data,
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+                status=status.HTTP_200_OK,
+            )
+
         user = User.objects.filter(email__iexact=email).first()
         if not user:
             return Response(
-                {"detail": _("User not found")},
-                status=status.HTTP_404_NOT_FOUND,
+                {"detail": _("Invalid or expired code")},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         verification = models.EmailVerificationCode.objects.filter(
@@ -430,14 +460,23 @@ class ResendVerificationCodeView(APIView):
         serializer.is_valid(raise_exception=True)
 
         email = serializer.validated_data["email"]
-        user = User.objects.filter(email__iexact=email).first()
 
-        if user:
-            # ✉️ SEND BRANDED VERIFICATION CODE
+        pending = models.PendingRegistration.objects.filter(
+            email__iexact=email,
+            is_verified=False,
+        ).first()
+
+        if pending:
             code = "".join([secrets.choice("0123456789") for _ in range(6)])
-            models.EmailVerificationCode.objects.create(user=user, code=code)
-
-            send_branded_verification_email(user.email, code)
+            pending.verification_code = code
+            pending.save(update_fields=["verification_code", "created_at"])
+            send_branded_verification_email(pending.email, code)
+        else:
+            user = User.objects.filter(email__iexact=email).first()
+            if user:
+                code = "".join([secrets.choice("0123456789") for _ in range(6)])
+                models.EmailVerificationCode.objects.create(user=user, code=code)
+                send_branded_verification_email(user.email, code)
 
         return Response(
             {"detail": _("If the email exists, a new code was sent")},
