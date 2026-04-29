@@ -11,9 +11,6 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: tafahom_api.settings
       ENVIRONMENT: PROD
-      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME}
-      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL}
-      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD}
     command: >
       sh -c "python manage.py migrate && 
            python manage.py setup_plans && 
