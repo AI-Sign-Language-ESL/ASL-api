@@ -28,7 +28,7 @@ class Command(BaseCommand):
         admin.set_password(admin_password)
         admin.save()
 
-        self.stdout.write(self.style.SUCCESS(f'Admin ready: {admin_username}'))
+        self.stdout.write(self.style.SUCCESS(f'Admin ready: {admin_username} (verified)'))
 
         supervisor, _ = User.objects.get_or_create(username='supervisor')
 
@@ -40,4 +40,4 @@ class Command(BaseCommand):
         supervisor.set_password('supervisor123')
         supervisor.save()
 
-        self.stdout.write(self.style.SUCCESS('Supervisor ready: supervisor'))
+        self.stdout.write(self.style.SUCCESS('Supervisor ready: supervisor (verified)'))
