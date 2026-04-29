@@ -77,10 +77,20 @@ services:
   coturn:
     image: coturn/coturn
     container_name: tafahom-turn
-    network_mode: "host"
     restart: unless-stopped
-    command: >
-      -n --log-file=stdout --min-port=49152 --max-port=65535 --realm=tafahom.com --user=tafahom_admin:StrongPassword123 --lt-cred-mech --external-ip=72.62.145.111
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/udp"
+      - "5349:5349/tcp"
+      - "49152-65535:49152-65535/udp"
+    environment:
+      - TURN_PORT=3478
+      - TURN_MIN_PORT=49152
+      - TURN_MAX_PORT=65535
 
 # =========================
 # Volumes

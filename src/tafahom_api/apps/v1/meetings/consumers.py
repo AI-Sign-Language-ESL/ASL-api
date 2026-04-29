@@ -63,15 +63,12 @@ class MeetingConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_send(
             self.room_group_name,
             {
-                "type": "websocket.send",
-                "text": json.dumps({
-                    "type": "broadcast",
-                    "message": {
-                        "type": "user_joined",
-                        "user": self.user.username,
-                        "role": await self._get_user_role(self.user, meeting),
-                    }
-                })
+                "type": "broadcast_message",
+                "message": {
+                    "type": "user_joined",
+                    "user": self.user.username,
+                    "role": await self._get_user_role(self.user, meeting),
+                }
             }
         )
 
@@ -81,14 +78,11 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    "type": "websocket.send",
-                    "text": json.dumps({
-                        "type": "broadcast",
-                        "message": {
-                            "type": "user_left",
-                            "user": self.user.username,
-                        }
-                    })
+                    "type": "broadcast_message",
+                    "message": {
+                        "type": "user_left",
+                        "user": self.user.username,
+                    }
                 }
             )
             await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
@@ -103,15 +97,13 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "websocket.send",
-                        "text": json.dumps({
-                            "type": "broadcast",
-                            "message": {
-                                "type": message_type,
-                                "data": data.get("data"),
-                                "user": self.user.username
-                            }
-                        })
+                        "type": "broadcast_message",
+                        "message": {
+                            "type": message_type,
+                            "data": data.get("data"),
+                            "user": self.user.username,
+                            "target": data.get("target")
+                        }
                     }
                 )
 
@@ -120,15 +112,12 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "websocket.send",
-                        "text": json.dumps({
-                            "type": "broadcast",
-                            "message": {
-                                "type": "chat",
-                                "message": data.get("message"),
-                                "user": self.user.username
-                            }
-                        })
+                        "type": "broadcast_message",
+                        "message": {
+                            "type": "chat",
+                            "message": data.get("message"),
+                            "user": self.user.username
+                        }
                     }
                 )
 
@@ -139,15 +128,12 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "websocket.send",
-                        "text": json.dumps({
-                            "type": "broadcast",
-                            "message": {
-                                "type": "sign_result",
-                                "gloss": result.get("gloss"),
-                                "user": self.user.username
-                            }
-                        })
+                        "type": "broadcast_message",
+                        "message": {
+                            "type": "sign_result",
+                            "gloss": result.get("gloss"),
+                            "user": self.user.username
+                        }
                     }
                 )
 
@@ -163,15 +149,12 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
-                    "type": "websocket.send",
-                    "text": json.dumps({
-                        "type": "broadcast",
-                        "message": {
-                            "type": "speech_result",
-                            "text": text,
-                            "user": self.user.username
-                        }
-                    })
+                    "type": "broadcast_message",
+                    "message": {
+                        "type": "speech_result",
+                        "text": text,
+                        "user": self.user.username
+                    }
                 }
             )
 
@@ -180,32 +163,30 @@ class MeetingConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "websocket.send",
-                        "text": json.dumps({
-                            "type": "broadcast",
-                            "message": {
-                                "type": "speaking_start",
-                                "user": self.user.username
-                            }
-                        })
+                        "type": "broadcast_message",
+                        "message": {
+                            "type": "speaking_start",
+                            "user": self.user.username
+                        }
                     }
                 )
-
-                # Auto-stop highlighting after delay (handled by frontend timeout)
             else:
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
-                        "type": "websocket.send",
-                        "text": json.dumps({
-                            "type": "broadcast",
-                            "message": {
-                                "type": "speaking_stop",
-                                "user": self.user.username
-                            }
-                        })
+                        "type": "broadcast_message",
+                        "message": {
+                            "type": "speaking_stop",
+                            "user": self.user.username
+                        }
                     }
                 )
+
+    # === Handler for group_send messages ===
+    async def broadcast_message(self, event):
+        """Handle all group broadcast messages"""
+        message = event.get("message", {})
+        await self.send(text_data=json.dumps(message))
 
     @database_sync_to_async
     def _check_access(self):
