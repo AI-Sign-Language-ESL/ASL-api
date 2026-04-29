@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# App directory (IMPORTANT)
+# App directory
 WORKDIR /app/src
 
 # Install Python dependencies
@@ -23,5 +23,5 @@ COPY src/ /app/src/
 # Expose Daphne port
 EXPOSE 8000
 
-# Default command (can be overridden by docker-compose)
+# Default command
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "tafahom_api.asgi:application"]
