@@ -24,9 +24,14 @@ class Command(BaseCommand):
                 first_name='Admin',
                 last_name='User'
             )
+            admin.is_verified = True
+            admin.save()
             self.stdout.write(self.style.SUCCESS(f'Created admin user: {admin_username} / {admin_password}'))
         else:
-            self.stdout.write(f'Admin user {admin_username} already exists')
+            admin = User.objects.get(username=admin_username)
+            admin.is_verified = True
+            admin.save()
+            self.stdout.write(f'Admin user {admin_username} already exists (marked as verified)')
 
         # Create supervisor user (fixed credentials)
         if not User.objects.filter(username='supervisor').exists():
@@ -38,9 +43,14 @@ class Command(BaseCommand):
                 first_name='Supervisor',
                 last_name='User'
             )
+            supervisor.is_verified = True
+            supervisor.save()
             self.stdout.write(self.style.SUCCESS('Created supervisor user: supervisor / supervisor123'))
         else:
-            self.stdout.write('Supervisor user already exists')
+            supervisor = User.objects.get(username='supervisor')
+            supervisor.is_verified = True
+            supervisor.save()
+            self.stdout.write('Supervisor user already exists (marked as verified)')
 
         self.stdout.write(self.style.WARNING('\nCredentials:'))
         self.stdout.write(f'Admin: username={admin_username}, password={admin_password}')
