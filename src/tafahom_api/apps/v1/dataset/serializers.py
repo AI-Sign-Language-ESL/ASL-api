@@ -34,8 +34,8 @@ class DatasetContributionCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Unsupported video extension.")
 
         mime, _ = mimetypes.guess_type(file.name)
-        if mime not in ALLOWED_MIME_TYPES:
-            raise serializers.ValidationError("Invalid video MIME type.")
+        if mime and mime not in ALLOWED_MIME_TYPES:
+            raise serializers.ValidationError(f"Invalid video MIME type: {mime}")
 
         return file
 
