@@ -67,6 +67,9 @@ class AdminUserListView(generics.ListAPIView):
                 user_data['tokens_used'] = user.subscription.tokens_used
                 user_data['weekly_tokens_limit'] = user.subscription.plan.weekly_tokens_limit
                 user_data['bonus_tokens'] = user.subscription.bonus_tokens
+                user_data['subscription_status'] = user.subscription.status
+            else:
+                user_data['subscription_status'] = 'no_subscription'
             users.append(user_data)
         return Response(users)
 
@@ -112,6 +115,32 @@ class AdminChangeUserPlanView(APIView):
         return Response({
             "message": f"User plan updated to {plan.name}",
             "user": UserResponseSerializer(user).data
+        })
+
+
+class AdminSubscriptionStatusView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get("status")
+        if new_status not in ["active", "cancelled", "expired", "pending"]:
+            return Response({"detail": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
+
+        subscription = getattr(user, 'subscription', None)
+        if not subscription:
+            return Response({"detail": "User has no subscription"}, status=status.HTTP_400_BAD_REQUEST)
+
+        subscription.status = new_status
+        subscription.save(update_fields=["status"])
+
+        return Response({
+            "message": f"Subscription status changed to {new_status}",
+            "subscription_status": subscription.status
         })
 
 
