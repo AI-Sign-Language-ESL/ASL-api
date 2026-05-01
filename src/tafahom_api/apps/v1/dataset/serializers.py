@@ -35,9 +35,15 @@ class DatasetContributionCreateSerializer(serializers.ModelSerializer):
 
         mime, _ = mimetypes.guess_type(file.name)
         if mime and mime not in ALLOWED_MIME_TYPES:
+            print(f"❌ VALIDATION ERROR: Invalid MIME type {mime}")
             raise serializers.ValidationError(f"Invalid video MIME type: {mime}")
 
         return file
+
+    def validate(self, data):
+        # Final debug check
+        print(f"✅ SERIALIZER DATA RECEIVED: {data}")
+        return data
 
 
 class DatasetContributionListSerializer(serializers.ModelSerializer):
