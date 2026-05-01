@@ -8,8 +8,9 @@ ALLOWED_MIME_TYPES = {
     "video/mp4",
     "video/webm",
     "video/x-msvideo",  # avi
+    "video/quicktime",  # mov
 }
-ALLOWED_EXTENSIONS = {".mp4", ".webm", ".avi"}
+ALLOWED_EXTENSIONS = {".mp4", ".webm", ".avi", ".mov"}
 
 
 class DatasetContributionCreateSerializer(serializers.ModelSerializer):
