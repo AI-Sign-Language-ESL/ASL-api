@@ -11,6 +11,7 @@ from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan, T
 from tafahom_api.apps.v1.billing.serializers import SubscriptionPlanSerializer
 from tafahom_api.apps.v1.dataset.models import DatasetContribution
 from tafahom_api.common.enums import DATASET_CONTRIBUTION_STATUS
+from tafahom_api.apps.v1.billing.models import PaymentTransaction
 
 
 class IsAdminOrSupervisor(BasePermission):
@@ -254,6 +255,36 @@ class AdminTransactionsView(generics.ListAPIView):
                 "amount": tx.amount,
                 "type": tx.transaction_type,
                 "reason": tx.reason,
+                "created_at": tx.created_at,
+            })
+        return Response(transactions)
+
+
+class AdminPaymentTransactionsView(generics.ListAPIView):
+    permission_classes = [IsAdmin]
+
+    def list(self, request, *args, **kwargs):
+        queryset = PaymentTransaction.objects.select_related("user", "subscription").all()
+        user_id = request.query_params.get("user_id")
+        status_filter = request.query_params.get("status")
+
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        transactions = []
+        for tx in queryset[:100]:
+            transactions.append({
+                "id": tx.id,
+                "transaction_id": tx.transaction_id,
+                "user": tx.user.username,
+                "user_email": tx.user.email,
+                "amount": tx.amount,
+                "currency": tx.currency,
+                "status": tx.status,
+                "provider": tx.provider,
+                "payment_method": tx.payment_method,
                 "created_at": tx.created_at,
             })
         return Response(transactions)

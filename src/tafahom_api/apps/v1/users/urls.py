@@ -30,6 +30,7 @@ urlpatterns = [
 
     # Admin - Transactions
     path("admin/transactions/", admin_views.AdminTransactionsView.as_view(), name="admin-transactions"),
+    path("admin/payment-transactions/", admin_views.AdminPaymentTransactionsView.as_view(), name="admin-payment-transactions"),
 
     # Admin - Stats
     path("admin/dashboard-stats/", admin_views.AdminDashboardStatsView.as_view(), name="admin-dashboard-stats"),
