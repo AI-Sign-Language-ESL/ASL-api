@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from . import webhook_views
+
 
 app_name = "billing"
 
@@ -30,7 +32,7 @@ urlpatterns = [
         views.ToggleAutoRenewalView.as_view(),
         name="toggle-auto-renewal",
     ),
-    # 🆕 Tokens
+    # 🪙 Tokens
     path(
         "me/tokens/",
         views.MyTokensView.as_view(),
@@ -40,5 +42,16 @@ urlpatterns = [
         "me/tokens/analytics/",
         views.TokenUsageAnalyticsView.as_view(),
         name="token-analytics",
+    ),
+    # 💳 Payment Webhooks
+    path(
+        "webhook/payment/",
+        webhook_views.PaymentWebhookView.as_view(),
+        name="payment-webhook",
+    ),
+    path(
+        "payment/verify/<str:transaction_id>/",
+        webhook_views.PaymentVerifyView.as_view(),
+        name="payment-verify",
     ),
 ]

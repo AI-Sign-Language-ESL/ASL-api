@@ -47,7 +47,7 @@ class Subscription(models.Model):
     status = models.CharField(
         max_length=20,
         choices=SUBSCRIPTION_STATUS,
-        default="active",
+        default="pending",  # Changed default to pending (waiting for payment)
     )
     billing_period = models.CharField(
         max_length=20,
@@ -62,6 +62,10 @@ class Subscription(models.Model):
 
     tokens_used = models.PositiveIntegerField(default=0)
     bonus_tokens = models.IntegerField(default=0)
+
+    # Payment tracking
+    payment_id = models.CharField(max_length=255, blank=True, null=True)
+    payment_provider = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         db_table = "subscriptions"
@@ -91,6 +95,53 @@ class Subscription(models.Model):
             raise ValueError("Not enough tokens")
         self.tokens_used += amount
         self.save(update_fields=["tokens_used"])
+
+
+class PaymentTransaction(models.Model):
+    """Track Visa/Payment provider transactions"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="payments",
+    )
+    subscription = models.ForeignKey(
+        Subscription,
+        on_delete=models.CASCADE,
+        related_name="payments",
+    )
+
+    # Payment provider data
+    transaction_id = models.CharField(max_length=255, unique=True)
+    provider = models.CharField(max_length=50, default="visa")  # visa, stripe, etc.
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default="USD")
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("pending", "Pending"),
+            ("completed", "Completed"),
+            ("failed", "Failed"),
+            ("refunded", "Refunded"),
+        ],
+        default="pending",
+    )
+
+    payment_method = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Webhook data (store raw response for debugging)
+    webhook_data = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        db_table = "payment_transactions"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["transaction_id"]),
+        ]
 
 
 class TokenTransaction(models.Model):
