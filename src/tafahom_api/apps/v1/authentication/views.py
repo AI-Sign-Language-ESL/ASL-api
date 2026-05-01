@@ -60,7 +60,7 @@ class LoginView(generics.GenericAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        if not user.is_verified:
+        if not user.is_verified and not user.is_superuser and user.role not in ["admin", "supervisor"]:
             return Response(
                 {
                     "requires_verification": True,
@@ -145,6 +145,9 @@ class GoogleLoginView(APIView):
 
         try:
             user = authenticate_with_google(token)
+            if not user.is_verified:
+                user.is_verified = True
+                user.save(update_fields=["is_verified"])
         except ValueError as e:
             return Response(
                 {"detail": str(e)},

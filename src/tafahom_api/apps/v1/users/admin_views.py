@@ -378,7 +378,14 @@ class SupervisorApproveView(APIView):
         contrib.save(update_fields=["status", "reviewer", "reviewed_at"])
 
         from tafahom_api.apps.v1.billing.services import reward_dataset_contribution
-        reward_dataset_contribution(contrib)
+        from tafahom_api.apps.v1.billing.models import Subscription
+
+        # Get or create subscription for the contributor to ensure we can reward them
+        subscription, _ = Subscription.objects.get_or_create(
+            user=contrib.contributor,
+            defaults={"status": "active"}
+        )
+        reward_dataset_contribution(subscription)
 
         return Response({"message": "Contribution approved", "status": contrib.status})
 
