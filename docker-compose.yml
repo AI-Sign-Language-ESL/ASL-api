@@ -84,6 +84,19 @@ services:
       - ./turnserver.conf:/etc/coturn/turnserver.conf
     restart: unless-stopped
 
+  # =========================
+  # Dedicated Media Server
+  # =========================
+  media_server:
+    image: nginx:alpine
+    container_name: tafahom-media
+    volumes:
+      - ./media:/usr/share/nginx/html/media:ro
+      - ./staticfiles:/usr/share/nginx/html/static:ro
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
 # =========================
 # Volumes
 # =========================
