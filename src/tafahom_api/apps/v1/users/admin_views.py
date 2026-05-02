@@ -368,6 +368,9 @@ class AdminDashboardStatsView(APIView):
         total_basic = User.objects.filter(role="basic_user").count()
         total_org = User.objects.filter(role="organization").count()
         total_admins = User.objects.filter(role="admin").count()
+        
+        from tafahom_api.apps.v1.authentication.models import PendingRegistration
+        pending_orgs = PendingRegistration.objects.filter(registration_type="organization", is_verified=True).count()
 
         active_subscriptions = Subscription.objects.filter(status="active").count()
 
@@ -381,6 +384,7 @@ class AdminDashboardStatsView(APIView):
                 "total": total_users,
                 "basic_users": total_basic,
                 "organizations": total_org,
+                "pending_organizations": pending_orgs,
                 "admins": total_admins,
             },
             "subscriptions": {
