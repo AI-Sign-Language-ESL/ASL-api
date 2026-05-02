@@ -205,31 +205,38 @@ class PendingRegistration(models.Model):
 
     def create_user(self):
         from tafahom_api.apps.v1.users.models import User, Organization
+        from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 
         # Organization accounts are created only after payment
         if self.registration_type == "organization":
             return None
 
-        user = User.objects.create(
-            username=self.username,
-            email=self.email,
-            password=self.password,  # Already hashed from make_password
-            first_name=self.first_name,
-            last_name=self.last_name,
-            role="basic_user",
-            organization=self.organization,
-            is_verified=True,
-        )
+        # Check if user already exists (e.g., from previous failed attempt)
+        user = User.objects.filter(email__iexact=self.email).first()
+        if not user:
+            user = User.objects.create(
+                username=self.username,
+                email=self.email,
+                password=self.password,  # Already hashed from make_password
+                first_name=self.first_name,
+                last_name=self.last_name,
+                role="basic_user",
+                organization=self.organization,
+                is_verified=True,
+            )
 
-        # Assign Free Plan
-        from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
+        # Assign or get Free Plan (use get_or_create to avoid duplicates)
         try:
             plan = SubscriptionPlan.objects.get(plan_type="free")
-            Subscription.objects.create(
+            subscription, created = Subscription.objects.get_or_create(
                 user=user,
-                plan=plan,
-                status="active"
+                defaults={"plan": plan, "status": "active"}
             )
+            if not created:
+                # Subscription already exists, just ensure it's active
+                if subscription.status != "active":
+                    subscription.status = "active"
+                    subscription.save(update_fields=["status"])
         except SubscriptionPlan.DoesNotExist:
             pass
 
