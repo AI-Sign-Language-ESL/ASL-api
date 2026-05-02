@@ -94,7 +94,7 @@ services:
       - ./media:/usr/share/nginx/html/media:ro
       - ./staticfiles:/usr/share/nginx/html/static:ro
     ports:
-      - "8080:80"
+      - "8095:80"
     restart: unless-stopped
 
 # =========================
