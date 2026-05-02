@@ -403,16 +403,19 @@ class VerifyEmailView(APIView):
         if pending and not pending.is_expired():
             # Organization accounts: don't create user yet, wait for payment
             if pending.registration_type == "organization":
-                pending.delete()
+                print(f"DEBUG: Organization verification - {email}, keeping pending, requires payment")
+                pending.is_verified = True
+                pending.save(update_fields=["is_verified"])
                 return Response(
                     {
-                        "message": _("Email verified. Please complete payment to activate your organization account."),
+                        "message": _("Email verified. You must subscribe to the Premium plan to activate your organization account."),
                         "requires_payment": True,
                         "email": pending.email,
                     },
                     status=status.HTTP_200_OK,
                 )
 
+            print(f"DEBUG: Basic user verification - {email}, creating user")
             user = pending.create_user()
             pending.delete()
 
@@ -427,6 +430,11 @@ class VerifyEmailView(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
+
+        print(f"DEBUG: No pending found or expired. Checking for existing user - {email}")
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
+            print(f"DEBUG: Found existing user {user.username} with role {user.role}")
 
         user = User.objects.filter(email__iexact=email).first()
         if not user:

@@ -159,8 +159,54 @@ class AdminChangeUserRoleView(APIView):
         user.save(update_fields=["role"])
 
         return Response({
-            "message": f"User role changed to {new_role}",
-            "role": user.role
+            "message": f"User role updated to {new_role}",
+            "user": UserResponseSerializer(user).data
+        })
+
+
+class AdminPendingOrganizationsView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        from tafahom_api.apps.v1.authentication.models import PendingRegistration
+        pending = PendingRegistration.objects.filter(
+            registration_type="organization",
+            is_verified=True
+        )
+        data = []
+        for p in pending:
+            data.append({
+                "id": p.id,
+                "email": p.email,
+                "username": p.username,
+                "organization_name": p.organization_name,
+                "activity_type": p.activity_type,
+                "created_at": p.created_at,
+            })
+        return Response(data)
+
+    def post(self, request, pending_id):
+        """Admin approves and creates the organization account"""
+        from tafahom_api.apps.v1.authentication.models import PendingRegistration
+        try:
+            pending = PendingRegistration.objects.get(
+                id=pending_id,
+                registration_type="organization",
+                is_verified=True
+            )
+        except PendingRegistration.DoesNotExist:
+            return Response(
+                {"detail": "Pending organization not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Create the organization user
+        user = pending.create_organization_user()
+        pending.delete()
+
+        return Response({
+            "message": f"Organization {user.organization_profile.organization_name} created successfully",
+            "user": UserResponseSerializer(user).data
         })
 
 
