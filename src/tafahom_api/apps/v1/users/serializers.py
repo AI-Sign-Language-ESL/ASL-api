@@ -193,6 +193,7 @@ class OrganizationRegistrationSerializer(
 
 class UserResponseSerializer(serializers.ModelSerializer):
     organization_name = serializers.SerializerMethodField()
+    org_code = serializers.SerializerMethodField()
     members_count = serializers.SerializerMethodField()
     contributions_count = serializers.SerializerMethodField()
     translations_count = serializers.SerializerMethodField()
@@ -212,6 +213,7 @@ class UserResponseSerializer(serializers.ModelSerializer):
             "is_superuser",
             "organization",
             "organization_name",
+            "org_code",
             "members_count",
             "contributions_count",
             "translations_count",
@@ -222,6 +224,15 @@ class UserResponseSerializer(serializers.ModelSerializer):
     def get_organization_name(self, obj):
         if obj.organization:
             return obj.organization.organization_profile.organization_name if hasattr(obj.organization, 'organization_profile') else None
+        if hasattr(obj, 'organization_profile'):
+            return obj.organization_profile.organization_name
+        return None
+
+    def get_org_code(self, obj):
+        if hasattr(obj, 'organization_profile'):
+            return obj.organization_profile.org_code
+        if obj.organization and hasattr(obj.organization, 'organization_profile'):
+            return obj.organization.organization_profile.org_code
         return None
 
     def get_members_count(self, obj):
