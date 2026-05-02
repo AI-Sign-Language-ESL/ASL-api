@@ -401,8 +401,6 @@ class VerifyEmailView(APIView):
         ).first()
 
         if pending and not pending.is_expired():
-            user = pending.create_user()
-
             # Organization accounts: don't create user yet, wait for payment
             if pending.registration_type == "organization":
                 pending.delete()
@@ -415,6 +413,7 @@ class VerifyEmailView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
+            user = pending.create_user()
             pending.delete()
 
             refresh = RefreshToken.for_user(user)
