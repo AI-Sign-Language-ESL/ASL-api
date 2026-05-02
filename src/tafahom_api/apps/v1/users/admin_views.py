@@ -12,6 +12,8 @@ from tafahom_api.apps.v1.billing.serializers import SubscriptionPlanSerializer
 from tafahom_api.apps.v1.dataset.models import DatasetContribution
 from tafahom_api.common.enums import DATASET_CONTRIBUTION_STATUS
 from tafahom_api.apps.v1.billing.models import PaymentTransaction
+from tafahom_api.apps.v1.billing.services import reward_dataset_contribution
+from tafahom_api.apps.v1.billing.models import Subscription
 
 
 class IsAdminOrSupervisor(BasePermission):
@@ -377,8 +379,7 @@ class SupervisorApproveView(APIView):
         contrib.reviewed_at = timezone.now()
         contrib.save(update_fields=["status", "reviewer", "reviewed_at"])
 
-        from tafahom_api.apps.v1.billing.services import reward_dataset_contribution
-        from tafahom_api.apps.v1.billing.models import Subscription
+        
 
         # Get or create subscription for the contributor to ensure we can reward them
         subscription, _ = Subscription.objects.get_or_create(
@@ -386,6 +387,9 @@ class SupervisorApproveView(APIView):
             defaults={"status": "active"}
         )
         reward_dataset_contribution(subscription)
+
+        from tafahom_api.common.emails import send_contribution_status_email
+        send_contribution_status_email(contrib.contributor.email, contrib.word, "approved")
 
         return Response({"message": "Contribution approved", "status": contrib.status})
 
@@ -406,6 +410,9 @@ class SupervisorRejectView(APIView):
         contrib.reviewer = request.user
         contrib.reviewed_at = timezone.now()
         contrib.save(update_fields=["status", "reviewer", "reviewed_at"])
+
+        from tafahom_api.common.emails import send_contribution_status_email
+        send_contribution_status_email(contrib.contributor.email, contrib.word, "rejected")
 
         return Response({"message": "Contribution rejected", "status": contrib.status})
 

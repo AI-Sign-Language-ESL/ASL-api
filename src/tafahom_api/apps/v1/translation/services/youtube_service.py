@@ -37,6 +37,7 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         '--extract-audio',             # Extract audio
         '--audio-format', 'mp3',      # Convert to MP3
         '--audio-quality', '5',        # Reasonable quality (0=best, 9=worst)
+        '--extractor-args', 'youtube:player_client=android,web', # Bypass bot check
         '--output', output_template,
         '--no-warnings',
         '--quiet',

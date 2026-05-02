@@ -194,6 +194,9 @@ class OrganizationRegistrationSerializer(
 class UserResponseSerializer(serializers.ModelSerializer):
     organization_name = serializers.SerializerMethodField()
     members_count = serializers.SerializerMethodField()
+    contributions_count = serializers.SerializerMethodField()
+    translations_count = serializers.SerializerMethodField()
+    meetings_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -210,6 +213,9 @@ class UserResponseSerializer(serializers.ModelSerializer):
             "organization",
             "organization_name",
             "members_count",
+            "contributions_count",
+            "translations_count",
+            "meetings_count",
         )
 
     def get_organization_name(self, obj):
@@ -219,6 +225,18 @@ class UserResponseSerializer(serializers.ModelSerializer):
 
     def get_members_count(self, obj):
         return obj.organization_members_count
+
+    def get_contributions_count(self, obj):
+        from tafahom_api.apps.v1.dataset.models import DatasetContribution
+        return DatasetContribution.objects.filter(contributor=obj, status="approved").count()
+
+    def get_translations_count(self, obj):
+        from tafahom_api.apps.v1.translation.models import TranslationRequest
+        return TranslationRequest.objects.filter(user=obj).count()
+
+    def get_meetings_count(self, obj):
+        from tafahom_api.apps.v1.meetings.models import Participant
+        return Participant.objects.filter(user=obj).count()
 
 
 # ======================================================

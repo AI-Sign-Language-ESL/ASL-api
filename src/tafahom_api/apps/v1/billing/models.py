@@ -81,11 +81,11 @@ class Subscription(models.Model):
             self.save(update_fields=["tokens_used", "last_reset"])
 
     def total_tokens(self):
-        return self.plan.weekly_tokens_limit
+        return self.plan.weekly_tokens_limit + self.bonus_tokens
 
     def remaining_tokens(self):
         self.reset_if_needed()
-        return max(0, self.total_tokens() - self.tokens_used)
+        return max(0, self.plan.weekly_tokens_limit - self.tokens_used) + self.bonus_tokens
 
     def can_consume(self, amount=1):
         return self.remaining_tokens() >= amount
@@ -93,8 +93,16 @@ class Subscription(models.Model):
     def consume(self, amount=1):
         if not self.can_consume(amount):
             raise ValueError("Not enough tokens")
-        self.tokens_used += amount
-        self.save(update_fields=["tokens_used"])
+        
+        # Consume from bonus tokens first
+        if self.bonus_tokens >= amount:
+            self.bonus_tokens -= amount
+        else:
+            remaining_amount = amount - self.bonus_tokens
+            self.bonus_tokens = 0
+            self.tokens_used += remaining_amount
+            
+        self.save(update_fields=["tokens_used", "bonus_tokens"])
 
 
 class PaymentTransaction(models.Model):
