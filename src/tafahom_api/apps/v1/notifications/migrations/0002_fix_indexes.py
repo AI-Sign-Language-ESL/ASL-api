@@ -21,10 +21,10 @@ class Migration(migrations.Migration):
         # to match what the model's Meta.indexes declaration expects
         migrations.AddIndex(
             model_name='notification',
-            index=models.Index(fields=['user', '-created_at']),
+            index=models.Index(fields=['user', '-created_at'], name='notifica_user_created_idx'),
         ),
         migrations.AddIndex(
             model_name='notification',
-            index=models.Index(fields=['user', 'is_read']),
+            index=models.Index(fields=['user', 'is_read'], name='notifica_user_read_idx'),
         ),
     ]
