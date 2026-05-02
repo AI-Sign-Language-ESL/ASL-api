@@ -216,6 +216,7 @@ class UserResponseSerializer(serializers.ModelSerializer):
             "contributions_count",
             "translations_count",
             "meetings_count",
+            "date_joined",
         )
 
     def get_organization_name(self, obj):
