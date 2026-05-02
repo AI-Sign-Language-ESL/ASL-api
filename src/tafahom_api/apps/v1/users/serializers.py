@@ -94,7 +94,7 @@ class BasicUserRegistrationSerializer(
                 organization_profile__org_code=org_code
             ).first()
             if not org_user:
-                raise serializers.ValidationError({"org_code": "Invalid organization code."})
+                raise serializers.ValidationError({"org_code": "No assigned organization found with this code."})
             attrs["organization"] = org_user
 
         return attrs
@@ -198,6 +198,11 @@ class UserResponseSerializer(serializers.ModelSerializer):
     contributions_count = serializers.SerializerMethodField()
     translations_count = serializers.SerializerMethodField()
     meetings_count = serializers.SerializerMethodField()
+    bonus_tokens = serializers.SerializerMethodField()
+    plan = serializers.SerializerMethodField()
+    subscription_status = serializers.SerializerMethodField()
+    tokens_used = serializers.SerializerMethodField()
+    weekly_tokens_limit = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -219,7 +224,27 @@ class UserResponseSerializer(serializers.ModelSerializer):
             "translations_count",
             "meetings_count",
             "date_joined",
+            "bonus_tokens",
+            "plan",
+            "subscription_status",
+            "tokens_used",
+            "weekly_tokens_limit",
         )
+
+    def get_subscription_status(self, obj):
+        return obj.subscription.status if hasattr(obj, 'subscription') else 'no_subscription'
+
+    def get_tokens_used(self, obj):
+        return obj.subscription.tokens_used if hasattr(obj, 'subscription') else 0
+
+    def get_weekly_tokens_limit(self, obj):
+        return obj.subscription.plan.weekly_tokens_limit if hasattr(obj, 'subscription') and obj.subscription.plan else 0
+
+    def get_bonus_tokens(self, obj):
+        return obj.subscription.bonus_tokens if hasattr(obj, 'subscription') else 0
+
+    def get_plan(self, obj):
+        return obj.subscription.plan.plan_type if hasattr(obj, 'subscription') else None
 
     def get_organization_name(self, obj):
         if obj.organization:

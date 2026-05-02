@@ -225,6 +225,24 @@ class PendingRegistration(models.Model):
                 job_title=self.job_title,
             )
 
+        # Assign Plan
+        from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
+        try:
+            if self.registration_type == "organization":
+                plan = SubscriptionPlan.objects.get(plan_type="premium")
+                status = "pending"  # Wait for payment
+            else:
+                plan = SubscriptionPlan.objects.get(plan_type="free")
+                status = "active"
+                
+            Subscription.objects.create(
+                user=user,
+                plan=plan,
+                status=status
+            )
+        except SubscriptionPlan.DoesNotExist:
+            pass # Handle gracefully if plans not seeded
+
         self.is_verified = True
         self.save(update_fields=["is_verified"])
 

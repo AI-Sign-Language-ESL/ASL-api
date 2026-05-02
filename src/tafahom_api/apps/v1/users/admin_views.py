@@ -62,19 +62,8 @@ class AdminUserListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        users = []
-        for user in queryset:
-            user_data = UserResponseSerializer(user).data
-            if hasattr(user, 'subscription') and user.subscription:
-                user_data['plan'] = user.subscription.plan.plan_type
-                user_data['tokens_used'] = user.subscription.tokens_used
-                user_data['weekly_tokens_limit'] = user.subscription.plan.weekly_tokens_limit
-                user_data['bonus_tokens'] = user.subscription.bonus_tokens
-                user_data['subscription_status'] = user.subscription.status
-            else:
-                user_data['subscription_status'] = 'no_subscription'
-            users.append(user_data)
-        return Response(users)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class AdminUserDetailView(generics.RetrieveAPIView):
@@ -522,24 +511,54 @@ class OrgAddTokensView(APIView):
         if amount <= 0:
             return Response({"detail": "Amount must be positive"}, status=status.HTTP_400_BAD_REQUEST)
 
-        subscription = getattr(member, 'subscription', None)
-        if not subscription:
-            return Response({"detail": "Member has no subscription"}, status=status.HTTP_400_BAD_REQUEST)
+        admin_subscription = getattr(request.user, 'subscription', None)
+        if not admin_subscription:
+            return Response({"detail": "You do not have an active subscription"}, status=status.HTTP_400_BAD_REQUEST)
 
-        subscription.bonus_tokens += amount
-        subscription.save(update_fields=["bonus_tokens"])
+        if admin_subscription.bonus_tokens < amount:
+            return Response({"detail": f"Not enough tokens. Your current balance is {admin_subscription.bonus_tokens}"}, status=status.HTTP_400_BAD_REQUEST)
 
+        member_subscription = getattr(member, 'subscription', None)
+        if not member_subscription:
+            # Create subscription for member if they don't have one
+            from tafahom_api.apps.v1.billing.models import SubscriptionPlan
+            free_plan = SubscriptionPlan.objects.get(plan_type='free')
+            member_subscription = Subscription.objects.create(
+                user=member,
+                plan=free_plan,
+                status="active"
+            )
+
+        # Deduct from Admin
+        admin_subscription.bonus_tokens -= amount
+        admin_subscription.save(update_fields=["bonus_tokens"])
+
+        # Add to Member
+        member_subscription.bonus_tokens += amount
+        member_subscription.save(update_fields=["bonus_tokens"])
+
+        # Transaction for Member
         TokenTransaction.objects.create(
             user=member,
-            subscription=subscription,
+            subscription=member_subscription,
             amount=amount,
             transaction_type="earned",
-            reason=request.data.get("reason", "Organization added tokens")
+            reason=request.data.get("reason", f"Received from {request.user.organization_profile.organization_name}")
+        )
+
+        # Transaction for Admin (to track sharing)
+        TokenTransaction.objects.create(
+            user=request.user,
+            subscription=admin_subscription,
+            amount=-amount,
+            transaction_type="used",
+            reason=f"Shared with {member.username}"
         )
 
         return Response({
-            "message": f"Added {amount} tokens to member",
-            "bonus_tokens": subscription.bonus_tokens
+            "message": f"Successfully shared {amount} tokens with {member.username}",
+            "member_bonus_tokens": member_subscription.bonus_tokens,
+            "your_remaining_tokens": admin_subscription.bonus_tokens
         })
 
 
@@ -561,22 +580,47 @@ class OrgRemoveTokensView(APIView):
         if amount <= 0:
             return Response({"detail": "Amount must be positive"}, status=status.HTTP_400_BAD_REQUEST)
 
-        subscription = getattr(member, 'subscription', None)
-        if not subscription:
+        member_subscription = getattr(member, 'subscription', None)
+        if not member_subscription:
             return Response({"detail": "Member has no subscription"}, status=status.HTTP_400_BAD_REQUEST)
 
-        subscription.bonus_tokens = max(0, subscription.bonus_tokens - amount)
-        subscription.save(update_fields=["bonus_tokens"])
+        # We can only take back what the member currently has in bonus tokens
+        actual_removed = min(amount, member_subscription.bonus_tokens)
+        if actual_removed <= 0:
+             return Response({"detail": "Member has no bonus tokens to remove"}, status=status.HTTP_400_BAD_REQUEST)
 
+        admin_subscription = getattr(request.user, 'subscription', None)
+        if not admin_subscription:
+             return Response({"detail": "You do not have an active subscription"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Deduct from Member
+        member_subscription.bonus_tokens -= actual_removed
+        member_subscription.save(update_fields=["bonus_tokens"])
+
+        # Return to Admin
+        admin_subscription.bonus_tokens += actual_removed
+        admin_subscription.save(update_fields=["bonus_tokens"])
+
+        # Transaction for Member
         TokenTransaction.objects.create(
             user=member,
-            subscription=subscription,
-            amount=-amount,
+            subscription=member_subscription,
+            amount=-actual_removed,
             transaction_type="used",
-            reason=request.data.get("reason", "Organization removed tokens")
+            reason=request.data.get("reason", f"Recovered by {request.user.organization_profile.organization_name}")
+        )
+
+        # Transaction for Admin
+        TokenTransaction.objects.create(
+            user=request.user,
+            subscription=admin_subscription,
+            amount=actual_removed,
+            transaction_type="earned",
+            reason=f"Recovered from {member.username}"
         )
 
         return Response({
-            "message": f"Removed {amount} tokens from member",
-            "bonus_tokens": subscription.bonus_tokens
+            "message": f"Successfully removed {actual_removed} tokens from {member.username} and returned to your balance",
+            "member_bonus_tokens": member_subscription.bonus_tokens,
+            "your_remaining_tokens": admin_subscription.bonus_tokens
         })
