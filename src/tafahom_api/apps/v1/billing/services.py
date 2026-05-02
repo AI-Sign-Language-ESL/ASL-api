@@ -37,10 +37,19 @@ def consume_generation_token(subscription, amount=10):
 
 def reward_dataset_contribution(subscription, tokens=10):
     """
-    Reward a user with tokens for contributing to the dataset.
+    Reward a user with bonus tokens for contributing to the dataset.
+    Bonus tokens are added on top of the weekly limit.
     """
     from django.db import transaction
+    from .models import TokenTransaction
     with transaction.atomic():
-        subscription.tokens_used = max(0, subscription.tokens_used - tokens)
-        subscription.save(update_fields=["tokens_used"])
+        subscription.bonus_tokens += tokens
+        subscription.save(update_fields=["bonus_tokens"])
+        TokenTransaction.objects.create(
+            user=subscription.user,
+            subscription=subscription,
+            amount=tokens,
+            transaction_type="earned",
+            reason="Dataset contribution reward"
+        )
     return True
