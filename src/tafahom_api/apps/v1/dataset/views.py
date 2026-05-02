@@ -1,6 +1,10 @@
 from django.utils import timezone
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
+import os
+import subprocess
+import tempfile
+from django.core.files import File
 
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -14,12 +18,57 @@ from .models import DatasetContribution, InvalidDatasetStatusTransition
 from . import serializers
 
 
+def convert_to_mp4(source_path):
+    """
+    Convert a video file to MP4 using ffmpeg.
+    Returns the path to the converted file, or None if conversion fails.
+    """
+    ext = os.path.splitext(source_path)[1].lower()
+    if ext in ('.mp4', '.webm'):
+        return None  # Already browser-compatible, no conversion needed
+
+    output_path = source_path.rsplit('.', 1)[0] + '_converted.mp4'
+    try:
+        result = subprocess.run(
+            [
+                'ffmpeg', '-y',
+                '-i', source_path,
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-movflags', 'faststart',
+                output_path
+            ],
+            capture_output=True,
+            timeout=120
+        )
+        if result.returncode == 0 and os.path.exists(output_path):
+            return output_path
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass  # ffmpeg not available or timed out
+    return None
+
+
 class DatasetContributionCreateView(generics.CreateAPIView):
     serializer_class = serializers.DatasetContributionCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(contributor=self.request.user)
+        contribution = serializer.save(contributor=self.request.user)
+
+        # Auto-convert non-browser-compatible formats (mov, avi) to mp4
+        if contribution.video:
+            source_path = contribution.video.path
+            converted_path = convert_to_mp4(source_path)
+            if converted_path:
+                new_name = os.path.basename(converted_path)
+                with open(converted_path, 'rb') as f:
+                    contribution.video.save(new_name, File(f), save=True)
+                # Clean up both temp files
+                try:
+                    os.remove(converted_path)
+                    os.remove(source_path)
+                except OSError:
+                    pass
 
 
 class PendingDatasetContributionsView(generics.ListAPIView):
