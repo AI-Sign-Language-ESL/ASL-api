@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; padding: 40px 20px; text-align: center;">
+    
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-w-md; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); width: 100%; max-width: 500px;">
+        <!-- Header -->
+        <tr>
+            <td style="background-color: #f9fafb; padding: 30px; border-bottom: 1px solid #f3f4f6;">
+                <img src="cid:tafahom_logo" alt="TAFAHOM" style="height: 48px; width: auto; display: block; margin: 0 auto;">
+            </td>
+        </tr>
+        
+        <!-- Content -->
+        <tr>
+            <td style="padding: 40px 30px;">
+                {% if status == "approved" %}
+                    <!-- Success Icon -->
+                    <div style="background-color: #d1fae5; width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; text-align: center;">
+                        <span style="color: #10b981; font-size: 32px; line-height: 64px;">✓</span>
+                    </div>
+                    <h2 style="color: #111827; font-size: 24px; font-weight: 700; margin: 0 0 16px;">Contribution Approved!</h2>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">
+                        Great news! Your dataset video contribution for the word/sign <strong style="color: #111827;">"{{ word }}"</strong> has been reviewed and approved by our supervisors.
+                    </p>
+                    
+                    <!-- Reward Box -->
+                    <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+                        <p style="color: #1e3a8a; font-weight: 700; margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Reward Earned</p>
+                        <p style="color: #2563eb; font-size: 24px; font-weight: 800; margin: 0;">+10 Bonus Tokens</p>
+                        <p style="color: #3b82f6; font-size: 14px; margin: 8px 0 0;">Added to your account balance</p>
+                    </div>
+                {% else %}
+                    <!-- Reject Icon -->
+                    <div style="background-color: #fee2e2; width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; text-align: center;">
+                        <span style="color: #ef4444; font-size: 32px; line-height: 64px;">✕</span>
+                    </div>
+                    <h2 style="color: #111827; font-size: 24px; font-weight: 700; margin: 0 0 16px;">Contribution Update</h2>
+                    <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">
+                        Unfortunately, your dataset video contribution for the word/sign <strong style="color: #111827;">"{{ word }}"</strong> could not be approved at this time.
+                    </p>
+                    <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0;">
+                        This might be due to video clarity, lighting, or accuracy. Please review our recording guidelines and feel free to try submitting again!
+                    </p>
+                {% endif %}
+
+                <!-- Button -->
+                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 30px;">
+                    <tr>
+                        <td align="center">
+                            <a href="https://tafahom.io/dataset" style="background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);">
+                                View Dashboard
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        
+        <!-- Footer -->
+        <tr>
+            <td style="background-color: #f9fafb; padding: 24px 30px; text-align: center; border-top: 1px solid #f3f4f6;">
+                <p style="color: #9ca3af; font-size: 14px; margin: 0;">
+                    Thank you for helping make the world more accessible.<br>
+                    <span style="color: #6b7280; font-weight: 600;">The TAFAHOM Team</span>
+                </p>
+            </td>
+        </tr>
+    </table>
+    
+    <div style="margin-top: 24px; text-align: center; max-width: 500px; margin-left: auto; margin-right: auto;">
+        <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+            © 2026 TAFAHOM. All rights reserved.
+        </p>
+    </div>
+</body>
+</html>

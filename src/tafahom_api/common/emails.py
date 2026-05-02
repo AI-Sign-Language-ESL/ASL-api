@@ -76,17 +76,11 @@ def send_contribution_status_email(user_email, word, status):
         subject = str(_("Update on your TAFAHOM Contribution"))
         text = _("Unfortunately, your video contribution for the word '%(word)s' was rejected. Please review our guidelines and try again.") % {'word': word}
         
-    html_message = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; background-color: #f9fafb; padding: 20px;">
-        <div style="max-w-md: mx-auto; background: white; padding: 30px; border-radius: 10px; text-align: center;">
-            <img src="cid:tafahom_logo" alt="TAFAHOM" style="height: 50px; margin-bottom: 20px;">
-            <h2 style="color: #1f2937;">{subject}</h2>
-            <p style="color: #4b5563; font-size: 16px;">{text}</p>
-        </div>
-    </body>
-    </html>
-    """
+    html_message = render_to_string('emails/contribution_status.html', {
+        'subject': subject,
+        'word': word,
+        'status': status
+    })
     
     plain_message = text
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "webmaster@localhost")
