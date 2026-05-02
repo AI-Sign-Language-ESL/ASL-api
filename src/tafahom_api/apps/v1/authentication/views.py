@@ -394,25 +394,61 @@ class VerifyEmailView(APIView):
         email = serializer.validated_data["email"]
         code = serializer.validated_data["code"]
 
+        print(f"DEBUG VerifyEmail: email={email}, code={code}")
+
         # Check PendingRegistration first (new registrations)
         pending = models.PendingRegistration.objects.filter(
             email__iexact=email,
             verification_code=code,
         ).first()
 
+        print(f"DEBUG: Pending found={pending is not None}")
+        if pending:
+            print(f"DEBUG: Pending type={pending.registration_type}, is_expired={pending.is_expired()}, created_at={pending.created_at}")
+
         if pending and not pending.is_expired():
             # Organization accounts: don't create user yet, wait for payment
-            if pending.registration_type == "organization":
+            if pending.registration_type in ["organization", "org_user"]:
                 pending.is_verified = True
                 pending.save(update_fields=["is_verified"])
                 return Response(
                     {
-                        "message": _("Email verified. You must subscribe to the Premium plan to activate your organization account."),
+                        "message": _("Email verified. You must subscribe to the Premium plan to activate your account."),
                         "requires_payment": True,
+                        "registration_type": pending.registration_type,
                         "email": pending.email,
                     },
                     status=status.HTTP_200_OK,
                 )
+
+            # Basic users: create account immediately
+            user = pending.create_user()
+            pending.delete()
+
+            refresh = RefreshToken.for_user(user)
+
+            return Response(
+                {
+                    "message": _("Email verified successfully"),
+                    "user": UserResponseSerializer(user).data,
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Debug: Check if there's a pending with this email but different code
+        pending_by_email = models.PendingRegistration.objects.filter(
+            email__iexact=email,
+        ).first()
+        if pending_by_email:
+            print(f"DEBUG: Found pending with same email but code mismatch: stored_code={pending_by_email.verification_code}, provided_code={code}")
+            print(f"DEBUG: Pending created_at={pending_by_email.created_at}, is_expired={pending_by_email.is_expired()}")
+
+        return Response(
+            {"detail": _("Invalid or expired code")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
             user = pending.create_user()
             pending.delete()
@@ -525,10 +561,8 @@ class ResendVerificationCodeView(APIView):
         ).first()
 
         if pending:
-            code = "".join([secrets.choice("0123456789") for _ in range(6)])
-            pending.verification_code = code
-            pending.save(update_fields=["verification_code", "created_at"])
-            send_branded_verification_email(pending.email, code)
+            # Keep the same code, just resend it
+            send_branded_verification_email(pending.email, pending.verification_code)
         else:
             user = User.objects.filter(email__iexact=email).first()
             if user:

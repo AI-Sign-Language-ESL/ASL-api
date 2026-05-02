@@ -165,7 +165,8 @@ class EmailVerificationCode(models.Model):
 class PendingRegistration(models.Model):
     REGISTRATION_TYPES = [
         ('basic', 'Basic User'),
-        ('organization', 'Organization'),
+        ('organization', 'Organization Admin'),
+        ('org_user', 'Organization User'),
     ]
 
     email = models.EmailField(unique=True)
@@ -191,6 +192,11 @@ class PendingRegistration(models.Model):
     verification_code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
+    payment_status = models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'), ('completed', 'Completed'), ('failed', 'Failed')],
+        default='pending'
+    )
 
     class Meta:
         db_table = "pending_registrations"
@@ -201,7 +207,7 @@ class PendingRegistration(models.Model):
         return f"Pending: {self.email} - {self.registration_type}"
 
     def is_expired(self):
-        return timezone.now() > self.created_at + timezone.timedelta(minutes=15)
+        return timezone.now() > self.created_at + timezone.timedelta(hours=24)
 
     def create_user(self):
         from tafahom_api.apps.v1.users.models import User, Organization
