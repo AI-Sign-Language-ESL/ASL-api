@@ -214,6 +214,7 @@ class PendingRegistration(models.Model):
             last_name=self.last_name,
             role="organization" if self.registration_type == "organization" else "basic_user",
             organization=self.organization,
+            is_verified=True,
         )
 
         if self.registration_type == "organization":
