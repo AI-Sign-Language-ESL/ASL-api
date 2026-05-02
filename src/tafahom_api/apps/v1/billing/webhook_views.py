@@ -42,15 +42,49 @@ class PaymentWebhookView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
+        # Check if user exists
+        user = User.objects.filter(id=user_id).first()
+
+        # If user doesn't exist, check for pending registration (organization)
+        if not user:
+            from tafahom_api.apps.v1.authentication.models import PendingRegistration
+            pending = PendingRegistration.objects.filter(
+                email__iexact=data.get("email", ""),
+                registration_type="organization",
+                is_verified=True
+            ).first()
+
+            if pending and payment_status == "completed":
+                # Create organization user after successful payment
+                user = pending.create_organization_user()
+                pending.delete()
+
+                # Create payment transaction
+                PaymentTransaction.objects.create(
+                    transaction_id=transaction_id,
+                    user=user,
+                    subscription=user.subscription,
+                    amount=amount,
+                    currency="USD",
+                    status=payment_status,
+                    provider=payment_method,
+                    payment_method=payment_method,
+                    webhook_data=raw_data,
+                )
+
+                return Response({
+                    "message": "Organization account created successfully",
+                    "user_id": user.id,
+                    "subscription_status": "active",
+                    "transaction_id": transaction_id
+                })
+
             return Response(
-                {"detail": "User not found"},
+                {"detail": "User not found and no pending registration"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Get or create subscription
+        # Get or create subscription for existing user
         subscription, _ = Subscription.objects.get_or_create(
             user=user,
             defaults={"plan": SubscriptionPlan.objects.get(plan_type="free")}

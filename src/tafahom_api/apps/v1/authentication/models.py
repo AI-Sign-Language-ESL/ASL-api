@@ -206,42 +206,66 @@ class PendingRegistration(models.Model):
     def create_user(self):
         from tafahom_api.apps.v1.users.models import User, Organization
 
+        # Organization accounts are created only after payment
+        if self.registration_type == "organization":
+            return None
+
         user = User.objects.create(
             username=self.username,
             email=self.email,
             password=self.password,  # Already hashed from make_password
             first_name=self.first_name,
             last_name=self.last_name,
-            role="organization" if self.registration_type == "organization" else "basic_user",
+            role="basic_user",
             organization=self.organization,
             is_verified=True,
         )
 
-        if self.registration_type == "organization":
-            Organization.objects.create(
-                user=user,
-                organization_name=self.organization_name,
-                activity_type=self.activity_type,
-                job_title=self.job_title,
-            )
-
-        # Assign Plan
+        # Assign Free Plan
         from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
         try:
-            if self.registration_type == "organization":
-                plan = SubscriptionPlan.objects.get(plan_type="premium")
-                status = "pending"  # Wait for payment
-            else:
-                plan = SubscriptionPlan.objects.get(plan_type="free")
-                status = "active"
-                
+            plan = SubscriptionPlan.objects.get(plan_type="free")
             Subscription.objects.create(
                 user=user,
                 plan=plan,
-                status=status
+                status="active"
             )
         except SubscriptionPlan.DoesNotExist:
-            pass # Handle gracefully if plans not seeded
+            pass
+
+        self.is_verified = True
+        self.save(update_fields=["is_verified"])
+
+        return user
+
+    def create_organization_user(self):
+        """Create organization user after payment is confirmed"""
+        from tafahom_api.apps.v1.users.models import User, Organization
+        from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
+
+        user = User.objects.create(
+            username=self.username,
+            email=self.email,
+            password=self.password,
+            first_name=self.first_name,
+            last_name=self.last_name,
+            role="organization",
+            is_verified=True,
+        )
+
+        Organization.objects.create(
+            user=user,
+            organization_name=self.organization_name,
+            activity_type=self.activity_type,
+            job_title=self.job_title,
+        )
+
+        plan = SubscriptionPlan.objects.get(plan_type="premium")
+        Subscription.objects.create(
+            user=user,
+            plan=plan,
+            status="active"
+        )
 
         self.is_verified = True
         self.save(update_fields=["is_verified"])

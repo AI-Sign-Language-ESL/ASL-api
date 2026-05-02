@@ -90,6 +90,12 @@ class AdminChangeUserPlanView(APIView):
         if not plan_type:
             return Response({"detail": "plan_type is required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        if user.role == "organization" and plan_type != "premium":
+            return Response(
+                {"detail": "Organizations can only subscribe to the Premium plan."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             plan = SubscriptionPlan.objects.get(plan_type=plan_type)
         except SubscriptionPlan.DoesNotExist:
@@ -515,8 +521,13 @@ class OrgAddTokensView(APIView):
         if not admin_subscription:
             return Response({"detail": "You do not have an active subscription"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if admin_subscription.bonus_tokens < amount:
-            return Response({"detail": f"Not enough tokens. Your current balance is {admin_subscription.bonus_tokens}"}, status=status.HTTP_400_BAD_REQUEST)
+        # Check total available tokens (weekly remaining + bonus)
+        admin_remaining = admin_subscription.remaining_tokens()
+        if admin_remaining < amount:
+            return Response(
+                {"detail": f"Not enough tokens. Your current balance is {admin_remaining}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         member_subscription = getattr(member, 'subscription', None)
         if not member_subscription:
@@ -529,9 +540,19 @@ class OrgAddTokensView(APIView):
                 status="active"
             )
 
-        # Deduct from Admin
-        admin_subscription.bonus_tokens -= amount
-        admin_subscription.save(update_fields=["bonus_tokens"])
+        # Deduct from Admin (bonus tokens first, then weekly allowance)
+        remaining_to_deduct = amount
+        if admin_subscription.bonus_tokens >= remaining_to_deduct:
+            admin_subscription.bonus_tokens -= remaining_to_deduct
+            remaining_to_deduct = 0
+        else:
+            remaining_to_deduct -= admin_subscription.bonus_tokens
+            admin_subscription.bonus_tokens = 0
+
+        if remaining_to_deduct > 0:
+            admin_subscription.tokens_used += remaining_to_deduct
+
+        admin_subscription.save(update_fields=["bonus_tokens", "tokens_used"])
 
         # Add to Member
         member_subscription.bonus_tokens += amount
@@ -558,7 +579,7 @@ class OrgAddTokensView(APIView):
         return Response({
             "message": f"Successfully shared {amount} tokens with {member.username}",
             "member_bonus_tokens": member_subscription.bonus_tokens,
-            "your_remaining_tokens": admin_subscription.bonus_tokens
+            "your_remaining_tokens": admin_subscription.remaining_tokens()
         })
 
 
@@ -597,7 +618,7 @@ class OrgRemoveTokensView(APIView):
         member_subscription.bonus_tokens -= actual_removed
         member_subscription.save(update_fields=["bonus_tokens"])
 
-        # Return to Admin
+        # Return to Admin (bonus tokens first, then reduce tokens_used)
         admin_subscription.bonus_tokens += actual_removed
         admin_subscription.save(update_fields=["bonus_tokens"])
 
@@ -622,5 +643,7 @@ class OrgRemoveTokensView(APIView):
         return Response({
             "message": f"Successfully removed {actual_removed} tokens from {member.username} and returned to your balance",
             "member_bonus_tokens": member_subscription.bonus_tokens,
-            "your_remaining_tokens": admin_subscription.bonus_tokens
+            "your_remaining_tokens": admin_subscription.remaining_tokens()
         })
+
+
