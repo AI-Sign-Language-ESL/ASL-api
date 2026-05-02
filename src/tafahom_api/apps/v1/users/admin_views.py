@@ -379,7 +379,8 @@ class SupervisorApproveView(APIView):
         contrib.reviewed_at = timezone.now()
         contrib.save(update_fields=["status", "reviewer", "reviewed_at"])
 
-        
+        from tafahom_api.apps.v1.billing.services import reward_dataset_contribution
+        from tafahom_api.apps.v1.billing.models import Subscription
 
         # Get or create subscription for the contributor to ensure we can reward them
         subscription, _ = Subscription.objects.get_or_create(
@@ -390,6 +391,16 @@ class SupervisorApproveView(APIView):
 
         from tafahom_api.common.emails import send_contribution_status_email
         send_contribution_status_email(contrib.contributor.email, contrib.word, "approved")
+
+        # Create in-app notification
+        from tafahom_api.apps.v1.notifications.models import Notification
+        Notification.objects.create(
+            user=contrib.contributor,
+            type="contribution_approved",
+            title="Contribution Approved! 🎉",
+            message=f'Your video for "{contrib.word}" was approved. +10 bonus tokens added to your account!',
+            action_url="/dataset",
+        )
 
         return Response({"message": "Contribution approved", "status": contrib.status})
 
@@ -413,6 +424,16 @@ class SupervisorRejectView(APIView):
 
         from tafahom_api.common.emails import send_contribution_status_email
         send_contribution_status_email(contrib.contributor.email, contrib.word, "rejected")
+
+        # Create in-app notification
+        from tafahom_api.apps.v1.notifications.models import Notification
+        Notification.objects.create(
+            user=contrib.contributor,
+            type="contribution_rejected",
+            title="Contribution Update",
+            message=f'Your video for "{contrib.word}" was not approved. Please review our guidelines and try again.',
+            action_url="/dataset",
+        )
 
         return Response({"message": "Contribution rejected", "status": contrib.status})
 
