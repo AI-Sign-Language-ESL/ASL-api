@@ -147,6 +147,28 @@ class AdminSubscriptionStatusView(APIView):
         })
 
 
+class AdminChangeUserRoleView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        new_role = request.data.get("role")
+        if new_role not in ["basic_user", "organization", "supervisor", "admin"]:
+            return Response({"detail": "Invalid role"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.role = new_role
+        user.save(update_fields=["role"])
+
+        return Response({
+            "message": f"User role changed to {new_role}",
+            "role": user.role
+        })
+
+
 # ======================================================
 # 🪙 ADMIN - TOKEN MANAGEMENT
 # ======================================================

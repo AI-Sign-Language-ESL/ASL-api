@@ -27,6 +27,7 @@ urlpatterns = [
     path("admin/users/<int:user_id>/add-tokens/", admin_views.AdminAddTokensView.as_view(), name="admin-add-tokens"),
     path("admin/users/<int:user_id>/remove-tokens/", admin_views.AdminRemoveTokensView.as_view(), name="admin-remove-tokens"),
     path("admin/users/<int:user_id>/subscription-status/", admin_views.AdminSubscriptionStatusView.as_view(), name="admin-subscription-status"),
+    path("admin/users/<int:user_id>/change-role/", admin_views.AdminChangeUserRoleView.as_view(), name="admin-change-role"),
 
     # Admin - Transactions
     path("admin/transactions/", admin_views.AdminTransactionsView.as_view(), name="admin-transactions"),
