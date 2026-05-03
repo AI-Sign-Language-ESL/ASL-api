@@ -32,16 +32,20 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     # yt-dlp options for audio extraction
     cmd = [
         'yt-dlp',
-        '--no-playlist',              # Only download single video
-        '-f', 'bestaudio[ext=m4a]/bestaudio/best',  # Best audio format
-        '--extract-audio',             # Extract audio
-        '--audio-format', 'mp3',      # Convert to MP3
-        '--audio-quality', '5',        # Reasonable quality (0=best, 9=worst)
-        '--extractor-args', 'youtube:player_client=ios,android,web', # Bypass bot check with multiple clients
+        '--no-playlist',              
+        '-f', 'bestaudio[ext=m4a]/bestaudio/best',
+        '--extract-audio',
+        '--audio-format', 'mp3',      
+        '--audio-quality', '5',
+        # Aggressive bot bypass arguments:
+        '--extractor-args', 'youtube:player_client=ios,android_creator',
+        '--add-header', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '--add-header', 'Accept-Language: en-US,en;q=0.9',
+        '--rm-cache-dir', # Clear cache to avoid corrupted session
     ]
     
     # If a cookies.txt file exists (for bypassing bot protections on servers)
-    cookies_path = '/app/cookies.txt'
+    cookies_path = '/app/yt-dlp/cookies.txt'
     if os.path.exists(cookies_path):
         cmd.extend(['--cookies', cookies_path])
         
