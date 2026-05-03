@@ -113,7 +113,7 @@ class BasicUserRegistrationSerializer(
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"],
             password=make_password(validated_data["password"]),
-            registration_type="basic",
+            registration_type="org_user" if org else "basic",
             verification_code=code,
             organization=org,
         )
