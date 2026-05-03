@@ -274,10 +274,9 @@ class PendingRegistration(models.Model):
         )
 
         plan = SubscriptionPlan.objects.get(plan_type="premium")
-        Subscription.objects.create(
+        Subscription.objects.update_or_create(
             user=user,
-            plan=plan,
-            status="active"
+            defaults={"plan": plan, "status": "active"}
         )
 
         self.is_verified = True
