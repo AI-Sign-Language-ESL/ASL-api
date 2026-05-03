@@ -33,12 +33,11 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     cmd = [
         'yt-dlp',
         '--no-playlist',              
-        '-f', 'bestaudio[ext=m4a]/bestaudio/best',
+        '-f', 'bestaudio/best',
         '--extract-audio',
         '--audio-format', 'mp3',      
         '--audio-quality', '5',
-        # Aggressive bot bypass arguments:
-        '--extractor-args', 'youtube:player_client=ios,android_creator',
+        # Removed aggressive player_client spoofing since cookies are working!
         '--add-header', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         '--add-header', 'Accept-Language: en-US,en;q=0.9',
         '--rm-cache-dir', # Clear cache to avoid corrupted session
