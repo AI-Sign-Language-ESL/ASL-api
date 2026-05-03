@@ -37,12 +37,20 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         '--extract-audio',             # Extract audio
         '--audio-format', 'mp3',      # Convert to MP3
         '--audio-quality', '5',        # Reasonable quality (0=best, 9=worst)
-        '--extractor-args', 'youtube:player_client=android,web', # Bypass bot check
+        '--extractor-args', 'youtube:player_client=ios,android,web', # Bypass bot check with multiple clients
+    ]
+    
+    # If a cookies.txt file exists (for bypassing bot protections on servers)
+    cookies_path = '/app/cookies.txt'
+    if os.path.exists(cookies_path):
+        cmd.extend(['--cookies', cookies_path])
+        
+    cmd.extend([
         '--output', output_template,
         '--no-warnings',
         '--quiet',
         youtube_url
-    ]
+    ])
     
     try:
         result = subprocess.run(
