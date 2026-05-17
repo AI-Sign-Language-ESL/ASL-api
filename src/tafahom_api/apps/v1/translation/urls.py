@@ -17,6 +17,7 @@ urlpatterns = [
         name="my-translation-requests",
     ),
     path("to-sign/", views.TranslateToSignView.as_view()),
+    path("unity-sign/", views.UnityTranslateView.as_view()),
     path("status/<int:pk>/", views.TranslationStatusView.as_view()),
 
     path("speech-to-text/", views.SpeechToTextView.as_view()),

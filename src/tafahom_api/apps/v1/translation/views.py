@@ -32,6 +32,7 @@ from tafahom_api.apps.v1.translation.services.sign_video_service import (
 from tafahom_api.apps.v1.translation.services.streaming_translation_service import (
     TranslationPipelineService,
 )
+from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
 from tafahom_api.apps.v1.translation.serializers import TextToSignSerializer
 
 from tafahom_api.common.decorators import require_token_and_plan
@@ -321,3 +322,16 @@ class YouTubeTranslateView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+class UnityTranslateView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+
+        text = request.data.get("text", "")
+
+        result = translate_to_animation_names(
+            text
+        )
+
+        return Response(result)
