@@ -326,7 +326,7 @@ class UnityTranslateView(APIView):
 
     permission_classes = [AllowAny]
 
-    async def post(self, request):
+    def post(self, request):
 
         text = request.data.get("text", "")
         if not text or not text.strip():
@@ -334,9 +334,11 @@ class UnityTranslateView(APIView):
 
         # 1️⃣ Try NLP text-to-gloss first
         try:
-            ai_result = await asyncio.wait_for(
-                TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
-                timeout=settings.AI_TIMEOUT,
+            ai_result = asyncio.run(
+                asyncio.wait_for(
+                    TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
+                    timeout=settings.AI_TIMEOUT,
+                )
             )
             raw = (
                 ai_result.get("gloss_translation")
@@ -357,7 +359,7 @@ class UnityTranslateView(APIView):
         # 2️⃣ Fallback: Unity SignMatcher
         from .services.unity_sign_matcher_client import UnitySignMatcherClient
         client = UnitySignMatcherClient()
-        animations = await client.match(text)
+        animations = asyncio.run(client.match(text))
 
         if animations:
             return Response({
