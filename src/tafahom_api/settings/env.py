@@ -91,6 +91,11 @@ if ENVIRONMENT == "PROD":
             raise RuntimeError(f"{name} is required in PROD")
 
 # =============================================================================
+# UNITY SIGN MATCHER
+# =============================================================================
+UNITY_SIGN_MATCHER_URL = os.getenv("UNITY_SIGN_MATCHER_URL")
+
+# =============================================================================
 # WEBSOCKET LIMITS
 # =============================================================================
 WS_MAX_MESSAGES_PER_SECOND = int(os.getenv("WS_MAX_MESSAGES_PER_SECOND", 30))

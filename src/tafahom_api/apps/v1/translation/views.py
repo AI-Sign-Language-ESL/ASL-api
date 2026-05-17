@@ -326,12 +326,47 @@ class UnityTranslateView(APIView):
 
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    async def post(self, request):
 
         text = request.data.get("text", "")
+        if not text or not text.strip():
+            return Response({"animations": [], "unknown_words": [], "source": "error"})
 
-        result = translate_to_animation_names(
-            text
-        )
+        # 1️⃣ Try NLP text-to-gloss first
+        try:
+            ai_result = await asyncio.wait_for(
+                TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
+                timeout=settings.AI_TIMEOUT,
+            )
+            raw = (
+                ai_result.get("gloss_translation")
+                or ai_result.get("gloss")
+                or ai_result.get("text")
+                or text
+            )
+            result = translate_to_animation_names(str(raw))
+            result["source"] = "nlp"
+            return Response(result)
 
+        except asyncio.TimeoutError:
+            logger.warning("NLP text-to-gloss timed out, falling back to Unity SignMatcher")
+
+        except Exception as e:
+            logger.warning(f"NLP text-to-gloss failed: {e}")
+
+        # 2️⃣ Fallback: Unity SignMatcher
+        from .services.unity_sign_matcher_client import UnitySignMatcherClient
+        client = UnitySignMatcherClient()
+        animations = await client.match(text)
+
+        if animations:
+            return Response({
+                "animations": animations,
+                "unknown_words": [],
+                "source": "unity_matcher",
+            })
+
+        # 3️⃣ Last resort: direct ANIMATION_MAP lookup
+        result = translate_to_animation_names(text)
+        result["source"] = "direct_map"
         return Response(result)
