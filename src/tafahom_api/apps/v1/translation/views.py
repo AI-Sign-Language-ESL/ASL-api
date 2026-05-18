@@ -329,46 +329,86 @@ class UnityTranslateView(APIView):
     def post(self, request):
 
         text = request.data.get("text", "")
+
+        print("\n" + "=" * 50)
+        print("UNITY SIGN REQUEST")
+        print("=" * 50)
+        print(f"USER INPUT   : {repr(text)}")
+
         if not text or not text.strip():
-            return Response({"animations": [], "unknown_words": [], "source": "error"})
+            logger.warning("[UnitySign] Empty input received.")
+            empty = {"animations": [], "unknown_words": [], "source": "error"}
+            print(f"FINAL RESP   : {empty}  (empty input)")
+            print("=" * 50 + "\n")
+            return Response(empty)
 
         # 1️⃣ Try NLP text-to-gloss first
         try:
+            logger.debug("[UnitySign] Calling NLP text-to-gloss for: %r", text)
             ai_result = asyncio.run(
                 asyncio.wait_for(
                     TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
                     timeout=settings.AI_TIMEOUT,
                 )
             )
+
+            print(f"AI RAW RESULT: {ai_result}")
+
             raw = (
                 ai_result.get("gloss_translation")
                 or ai_result.get("gloss")
                 or ai_result.get("text")
                 or text
             )
+
+            print(f"MODEL OUTPUT : {repr(raw)}")
+
             result = translate_to_animation_names(str(raw))
             result["source"] = "nlp"
+
+            print(f"ANIMATIONS   : {result['animations']}")
+            print(f"UNKNOWN WORDS: {result['unknown_words']}")
+            print(f"SOURCE       : nlp")
+            print(f"FINAL RESP   : {result}")
+            print("=" * 50 + "\n")
+
             return Response(result)
 
         except asyncio.TimeoutError:
-            logger.warning("NLP text-to-gloss timed out, falling back to Unity SignMatcher")
+            logger.warning("[UnitySign] NLP text-to-gloss timed out, falling back to Unity SignMatcher")
+            print("AI TIMEOUT   : falling back to Unity SignMatcher")
 
         except Exception as e:
-            logger.warning(f"NLP text-to-gloss failed: {e}")
+            logger.warning("[UnitySign] NLP text-to-gloss failed: %s", e)
+            print(f"AI ERROR     : {type(e).__name__}: {e}")
 
         # 2️⃣ Fallback: Unity SignMatcher
+        print("FALLBACK     : trying Unity SignMatcher")
         from .services.unity_sign_matcher_client import UnitySignMatcherClient
         client = UnitySignMatcherClient()
         animations = asyncio.run(client.match(text))
 
+        print(f"SIGN MATCHER : {animations}")
+
         if animations:
-            return Response({
+            fallback_resp = {
                 "animations": animations,
                 "unknown_words": [],
                 "source": "unity_matcher",
-            })
+            }
+            print(f"FINAL RESP   : {fallback_resp}")
+            print("=" * 50 + "\n")
+            return Response(fallback_resp)
 
         # 3️⃣ Last resort: direct ANIMATION_MAP lookup
+        print("FALLBACK     : trying direct ANIMATION_MAP lookup")
         result = translate_to_animation_names(text)
         result["source"] = "direct_map"
+
+        print(f"ANIMATIONS   : {result['animations']}")
+        print(f"UNKNOWN WORDS: {result['unknown_words']}")
+        print(f"SOURCE       : direct_map")
+        print(f"FINAL RESP   : {result}")
+        print("=" * 50 + "\n")
+
         return Response(result)
