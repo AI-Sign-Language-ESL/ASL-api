@@ -286,3 +286,41 @@ else:
     # Print emails to the console in development
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
     DEFAULT_FROM_EMAIL = "webmaster@localhost"
+
+# =============================================================================
+# LOGGING  — show INFO+ from our own code in Docker/console
+# =============================================================================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{asctime} {levelname:<8} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        # Our app code → INFO so all logger.info() calls appear
+        "tafahom_api": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # httpx / httpcore (AI HTTP calls) → INFO so we see request logs
+        "httpx": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
