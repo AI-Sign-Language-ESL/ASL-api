@@ -15,11 +15,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import TranslationRequest, SignLanguageConfig
+from drf_spectacular.utils import extend_schema
+
 from .serializers import (
     TranslationRequestCreateSerializer,
     TranslationRequestStatusSerializer,
     SignLanguageConfigSerializer,
     TranslationRequestListSerializer,
+    UnitySignResponseSerializer,
 )
 from .services.youtube_service import download_youtube_audio
 
@@ -327,6 +330,12 @@ class UnityTranslateView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=TextToSignSerializer,
+        responses={200: UnitySignResponseSerializer},
+        summary="Translate text to Unity Animations",
+        description="Receives text (Arabic/English) and translates it to animation trigger names used by the Unity WebGL player."
+    )
     def post(self, request):
 
         text = request.data.get("text", "")
