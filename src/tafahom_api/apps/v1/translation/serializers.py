@@ -88,3 +88,10 @@ class TextToSignSerializer(serializers.Serializer):
         allow_blank=False,
         trim_whitespace=True,
     )
+
+class UnitySignResponseSerializer(serializers.Serializer):
+    animations = serializers.ListField(child=serializers.CharField())
+    unknown_words = serializers.ListField(child=serializers.CharField())
+    source = serializers.CharField()  # type: ignore[assignment]
+    target_language = serializers.CharField()
+    
