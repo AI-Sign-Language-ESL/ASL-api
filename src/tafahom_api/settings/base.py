@@ -230,7 +230,7 @@ MEDIA_ROOT = "/app/media"
 # =============================================================================
 # CORS / CSRF
 # =============================================================================
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = ["X-Total-Count", "X-Page-Count"]
