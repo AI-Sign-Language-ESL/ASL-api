@@ -330,21 +330,21 @@ class UnityTranslateView(APIView):
 
         text = request.data.get("text", "")
 
-        print("\n" + "=" * 50)
-        print("UNITY SIGN REQUEST")
-        print("=" * 50)
-        print(f"USER INPUT   : {repr(text)}")
+        logger.info("=" * 50)
+        logger.info("UNITY SIGN REQUEST")
+        logger.info("=" * 50)
+        logger.info("USER INPUT   : %r", text)
 
         if not text or not text.strip():
             logger.warning("[UnitySign] Empty input received.")
             empty = {"animations": [], "unknown_words": [], "source": "error"}
-            print(f"FINAL RESP   : {empty}  (empty input)")
-            print("=" * 50 + "\n")
+            logger.info("FINAL RESP   : %s  (empty input)", empty)
+            logger.info("=" * 50)
             return Response(empty)
 
         # 1️⃣ Try NLP text-to-gloss first
         try:
-            logger.debug("[UnitySign] Calling NLP text-to-gloss for: %r", text)
+            logger.info("[UnitySign] Calling NLP text-to-gloss ...")
             ai_result = asyncio.run(
                 asyncio.wait_for(
                     TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
@@ -352,7 +352,7 @@ class UnityTranslateView(APIView):
                 )
             )
 
-            print(f"AI RAW RESULT: {ai_result}")
+            logger.info("AI RAW RESULT: %s", ai_result)
 
             raw = (
                 ai_result.get("gloss_translation")
@@ -361,34 +361,32 @@ class UnityTranslateView(APIView):
                 or text
             )
 
-            print(f"MODEL OUTPUT : {repr(raw)}")
+            logger.info("MODEL OUTPUT : %r", raw)
 
             result = translate_to_animation_names(str(raw))
             result["source"] = "nlp"
 
-            print(f"ANIMATIONS   : {result['animations']}")
-            print(f"UNKNOWN WORDS: {result['unknown_words']}")
-            print(f"SOURCE       : nlp")
-            print(f"FINAL RESP   : {result}")
-            print("=" * 50 + "\n")
+            logger.info("ANIMATIONS   : %s", result["animations"])
+            logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
+            logger.info("SOURCE       : nlp")
+            logger.info("FINAL RESP   : %s", result)
+            logger.info("=" * 50)
 
             return Response(result)
 
         except asyncio.TimeoutError:
-            logger.warning("[UnitySign] NLP text-to-gloss timed out, falling back to Unity SignMatcher")
-            print("AI TIMEOUT   : falling back to Unity SignMatcher")
+            logger.warning("[UnitySign] NLP timed out (AI_TIMEOUT=%s s), falling back ...", settings.AI_TIMEOUT)
 
         except Exception as e:
-            logger.warning("[UnitySign] NLP text-to-gloss failed: %s", e)
-            print(f"AI ERROR     : {type(e).__name__}: {e}")
+            logger.warning("[UnitySign] NLP failed: %s: %s", type(e).__name__, e)
 
         # 2️⃣ Fallback: Unity SignMatcher
-        print("FALLBACK     : trying Unity SignMatcher")
+        logger.info("FALLBACK     : trying Unity SignMatcher")
         from .services.unity_sign_matcher_client import UnitySignMatcherClient
         client = UnitySignMatcherClient()
         animations = asyncio.run(client.match(text))
 
-        print(f"SIGN MATCHER : {animations}")
+        logger.info("SIGN MATCHER : %s", animations)
 
         if animations:
             fallback_resp = {
@@ -396,19 +394,29 @@ class UnityTranslateView(APIView):
                 "unknown_words": [],
                 "source": "unity_matcher",
             }
-            print(f"FINAL RESP   : {fallback_resp}")
-            print("=" * 50 + "\n")
+            logger.info("FINAL RESP   : %s", fallback_resp)
+            logger.info("=" * 50)
             return Response(fallback_resp)
 
         # 3️⃣ Last resort: direct ANIMATION_MAP lookup
-        print("FALLBACK     : trying direct ANIMATION_MAP lookup")
+        logger.info("FALLBACK     : trying direct ANIMATION_MAP lookup")
+        logger.info("MAP INPUT    : words = %s", text.split())
+
+        # Log each word lookup so we can see what's missing from the map
+        from ..sign_map import ANIMATION_MAP
+        for word in text.split():
+            if word in ANIMATION_MAP:
+                logger.info("MAP HIT      : %r -> %r", word, ANIMATION_MAP[word])
+            else:
+                logger.warning("MAP MISS     : %r not found in ANIMATION_MAP", word)
+
         result = translate_to_animation_names(text)
         result["source"] = "direct_map"
 
-        print(f"ANIMATIONS   : {result['animations']}")
-        print(f"UNKNOWN WORDS: {result['unknown_words']}")
-        print(f"SOURCE       : direct_map")
-        print(f"FINAL RESP   : {result}")
-        print("=" * 50 + "\n")
+        logger.info("ANIMATIONS   : %s", result["animations"])
+        logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
+        logger.info("SOURCE       : direct_map")
+        logger.info("FINAL RESP   : %s", result)
+        logger.info("=" * 50)
 
         return Response(result)
