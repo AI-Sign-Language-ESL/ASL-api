@@ -34,6 +34,7 @@ from tafahom_api.apps.v1.translation.services.streaming_translation_service impo
 )
 from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
 from tafahom_api.apps.v1.translation.serializers import TextToSignSerializer
+from tafahom_api.apps.v1.translation.sign_map import ANIMATION_MAP
 
 from tafahom_api.common.decorators import require_token_and_plan
 
@@ -403,7 +404,6 @@ class UnityTranslateView(APIView):
         logger.info("MAP INPUT    : words = %s", text.split())
 
         # Log each word lookup so we can see what's missing from the map
-        from ..sign_map import ANIMATION_MAP
         for word in text.split():
             if word in ANIMATION_MAP:
                 logger.info("MAP HIT      : %r -> %r", word, ANIMATION_MAP[word])
@@ -411,11 +411,11 @@ class UnityTranslateView(APIView):
                 logger.warning("MAP MISS     : %r not found in ANIMATION_MAP", word)
 
         result = translate_to_animation_names(text)
-        result["source"] = "direct_map"
+        result["source"] = "sign_map"
 
         logger.info("ANIMATIONS   : %s", result["animations"])
         logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
-        logger.info("SOURCE       : direct_map")
+        logger.info("SOURCE       : sign_map")
         logger.info("FINAL RESP   : %s", result)
         logger.info("=" * 50)
 
