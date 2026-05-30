@@ -8,12 +8,56 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.mail import send_mail
+from django.db import IntegrityError
 from tafahom_api.common.emails import send_branded_verification_email, send_password_reset_email
 
 from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.throttling import SimpleRateThrottle
+
+
+# =====================================================
+# 🔒 SECURITY: PER-ENDPOINT RATE THROTTLES
+# =====================================================
+
+class LoginRateThrottle(SimpleRateThrottle):
+    """
+    5 attempts per minute per IP address.
+    Mitigates brute-force and credential-stuffing attacks on login endpoints.
+    Rate is configured via DEFAULT_THROTTLE_RATES['login'] in settings.
+    """
+    scope = "login"
+
+    def get_cache_key(self, request, view):
+        # Throttle by IP, not by user — so unauthenticated attackers are blocked too
+        ident = self.get_ident(request)
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class PasswordResetRateThrottle(SimpleRateThrottle):
+    """
+    3 attempts per minute per IP address.
+    Mitigates mass password-reset spam and timing-based email enumeration.
+    """
+    scope = "password_reset"
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request)
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class VerifyEmailRateThrottle(SimpleRateThrottle):
+    """
+    10 attempts per minute per IP address.
+    6-digit OTP = 1,000,000 combinations — rate limiting makes brute-force impractical.
+    """
+    scope = "verify_email"
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request)
+        return self.cache_format % {"scope": self.scope, "ident": ident}
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -33,6 +77,7 @@ from tafahom_api.apps.v1.users.serializers import BasicUserRegistrationSerialize
 class LoginView(generics.GenericAPIView):
     serializer_class = serializers.LoginSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -100,6 +145,7 @@ class LoginView(generics.GenericAPIView):
 class Login2FAView(generics.GenericAPIView):
     serializer_class = serializers.Login2FASerializer
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -134,6 +180,7 @@ class Login2FAView(generics.GenericAPIView):
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         token = request.data.get("token")
@@ -152,6 +199,11 @@ class GoogleLoginView(APIView):
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+        except IntegrityError:
+            return Response(
+                {"detail": _("A database error occurred during account creation.")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         refresh = RefreshToken.for_user(user)
@@ -316,6 +368,7 @@ class ChangePasswordView(APIView):
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     serializer_class = serializers.PasswordResetRequestSerializer
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -339,6 +392,7 @@ class PasswordResetRequestView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     serializer_class = serializers.PasswordResetConfirmSerializer
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -386,6 +440,7 @@ class PasswordResetConfirmView(APIView):
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
     serializer_class = serializers.EmailVerificationSerializer
+    throttle_classes = [VerifyEmailRateThrottle]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -487,6 +542,7 @@ class VerifyEmailView(APIView):
 class ResendVerificationCodeView(APIView):
     permission_classes = [AllowAny]
     serializer_class = serializers.EmailResendSerializer
+    throttle_classes = [VerifyEmailRateThrottle]
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)

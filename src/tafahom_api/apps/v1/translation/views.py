@@ -41,6 +41,10 @@ from tafahom_api.apps.v1.translation.sign_map import ANIMATION_MAP
 
 from tafahom_api.common.decorators import require_token_and_plan
 
+from tafahom_api.apps.v1.translation.services.cache_service import get_cached_translation, set_cached_translation
+from tafahom_api.apps.v1.translation.services.ai_service import call_ai_translation
+from tafahom_api.apps.v1.translation.services.sign_matcher_service import match_sign, normalize_arabic_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -429,3 +433,52 @@ class UnityTranslateView(APIView):
         logger.info("=" * 50)
 
         return Response(result)
+
+
+# =====================================================
+# HYBRID TRANSLATION PIPELINE
+# =====================================================
+class TranslationAPIView(APIView):
+    """
+    Hybrid Translation Endpoint
+    POST /api/v1/translation/translate/
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, *args, **kwargs):
+        text = request.data.get("text", "").strip()
+        
+        if not text:
+            return Response(
+                {"success": False, "error": "Text is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        logger.info("Translation request received for text: '%s'", text)
+        
+        normalized_text = normalize_arabic_text(text)
+        
+        # Step 1: Check Cache
+        cached_result = get_cached_translation(normalized_text)
+        if cached_result:
+            cached_result['source'] = 'cache'
+            return Response(cached_result, status=status.HTTP_200_OK)
+            
+        # Step 2: Call AI Service
+        ai_result = call_ai_translation(text)
+        
+        if ai_result:
+            # Step 3: AI success -> Save to cache and return
+            set_cached_translation(normalized_text, ai_result)
+            return Response(ai_result, status=status.HTTP_200_OK)
+            
+        # Step 4: AI failed/timeout -> Fallback to Sign Matcher
+        try:
+            fallback_result = match_sign(text)
+            return Response(fallback_result, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error("Sign Matcher failed for text: %s. Error: %s", text, e)
+            return Response(
+                {"success": False, "error": "Unable to translate text"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

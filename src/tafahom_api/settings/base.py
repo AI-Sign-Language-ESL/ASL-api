@@ -91,6 +91,7 @@ CACHES = {
         }
     )
 }
+CACHE_TIMEOUT = 86400  # 24 hours
 # =============================================================================
 # APPLICATIONS
 # =============================================================================
@@ -104,6 +105,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "corsheaders",
     "channels",
@@ -182,6 +184,8 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 AUTH_USER_MODEL = "users.User"
@@ -215,6 +219,12 @@ WS_MAX_MESSAGES_PER_SECOND = WS_MAX_MESSAGES_PER_SECOND
 WS_MAX_CONNECTION_TIME = WS_MAX_CONNECTION_TIME
 
 # =============================================================================
+# HYBRID TRANSLATION PIPELINE
+# =============================================================================
+AI_TIMEOUT_SECONDS = getattr(settings, "AI_TIMEOUT_SECONDS", 3) if 'settings' in locals() else 3
+
+
+# =============================================================================
 # STATIC FILES
 # =============================================================================
 STATIC_URL = "/static/"
@@ -230,7 +240,9 @@ MEDIA_ROOT = "/app/media"
 # =============================================================================
 # CORS / CSRF
 # =============================================================================
-CORS_ALLOW_ALL_ORIGINS = True
+# SECURITY: Never allow all origins in production — use explicit whitelist via CORS_ALLOWED_ORIGINS.
+# CORS_ALLOW_ALL_ORIGINS = True would override CORS_ALLOWED_ORIGINS and allow any domain.
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = ["X-Total-Count", "X-Page-Count"]
@@ -256,6 +268,10 @@ REST_FRAMEWORK = {
         "anon": "100/minute",
         "user": "200/minute",
         "ws_msg": WS_MAX_MESSAGES_PER_SECOND,
+        # Auth-specific strict limits (prevent brute-force / OTP guessing)
+        "login": "5/minute",
+        "password_reset": "3/minute",
+        "verify_email": "10/minute",
     },
     "EXCEPTION_HANDLER": "tafahom_api.common.exception_handler.custom_exception_handler",
 }
