@@ -4,9 +4,6 @@ from . import views
 app_name = "translation"
 urlpatterns = [
     path(
-        "sign-languages/", views.SignLanguageListView.as_view(), name="sign-languages"
-    ),
-    path(
         "requests/",
         views.TranslationRequestCreateView.as_view(),
         name="translation-request-create",
@@ -22,6 +19,6 @@ urlpatterns = [
 
     path("speech-to-text/", views.SpeechToTextView.as_view()),
     path("youtube-translate/", views.YouTubeTranslateView.as_view(), name="youtube-translate"),
-
+    path("translate/", views.TranslationAPIView.as_view(), name="hybrid-translate"),
 ]
 ####

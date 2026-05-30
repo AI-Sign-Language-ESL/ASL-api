@@ -10,6 +10,7 @@ urlpatterns = [
     path("login/2fa/", views.Login2FAView.as_view(), name="login-2fa"),
     path("login/google/", views.GoogleLoginView.as_view(), name="login-google"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+    path("logout/", views.LogoutView.as_view(), name="logout"),
     # Two-Factor Authentication (Setup & Management)
     path("2fa/setup/", views.TwoFactorSetupView.as_view(), name="2fa-setup"),
     path("2fa/enable/", views.TwoFactorEnableView.as_view(), name="2fa-enable"),

@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import F
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
@@ -75,10 +76,17 @@ class Subscription(models.Model):
         ]
 
     def reset_if_needed(self):
+        """Reset weekly token usage if 7+ days have elapsed since last reset.
+        Uses F() to avoid a race condition on the reset itself.
+        """
         if timezone.now() - self.last_reset >= timedelta(days=7):
-            self.tokens_used = 0
-            self.last_reset = timezone.now()
-            self.save(update_fields=["tokens_used", "last_reset"])
+            # Atomic reset — no read-modify-write
+            Subscription.objects.filter(pk=self.pk).update(
+                tokens_used=0,
+                last_reset=timezone.now(),
+            )
+            # Refresh instance so callers see current values
+            self.refresh_from_db(fields=["tokens_used", "last_reset"])
 
     def total_tokens(self):
         return self.plan.weekly_tokens_limit + self.bonus_tokens
@@ -91,18 +99,44 @@ class Subscription(models.Model):
         return self.remaining_tokens() >= amount
 
     def consume(self, amount=1):
-        if not self.can_consume(amount):
-            raise ValueError("Not enough tokens")
-        
-        # Consume from bonus tokens first
-        if self.bonus_tokens >= amount:
-            self.bonus_tokens -= amount
-        else:
-            remaining_amount = amount - self.bonus_tokens
-            self.bonus_tokens = 0
-            self.tokens_used += remaining_amount
-            
-        self.save(update_fields=["tokens_used", "bonus_tokens"])
+        """
+        Atomically consume `amount` tokens using a DB-level SELECT FOR UPDATE +
+        conditional F() update.  This eliminates the TOCTOU race condition where
+        two concurrent requests both pass can_consume(), both proceed, and both
+        decrement the balance — resulting in negative / over-consumed tokens.
+
+        Algorithm:
+          1. Re-fetch this row with a row-level lock (SELECT FOR UPDATE).
+          2. Recalculate balance inside the lock.
+          3. Raise ValueError immediately if balance is insufficient.
+          4. Deduct from bonus_tokens first, then tokens_used, using F() so the
+             arithmetic happens in a single atomic SQL UPDATE statement.
+        """
+        from django.db import transaction
+
+        with transaction.atomic():
+            # Lock the row for the duration of this transaction
+            locked = Subscription.objects.select_for_update().get(pk=self.pk)
+            locked.reset_if_needed()
+
+            remaining = max(0, locked.plan.weekly_tokens_limit - locked.tokens_used) + locked.bonus_tokens
+            if remaining < amount:
+                raise ValueError("Not enough tokens")
+
+            # Deduct from bonus_tokens first, then from the weekly allowance
+            if locked.bonus_tokens >= amount:
+                Subscription.objects.filter(pk=self.pk).update(
+                    bonus_tokens=F("bonus_tokens") - amount
+                )
+            else:
+                remainder = amount - locked.bonus_tokens
+                Subscription.objects.filter(pk=self.pk).update(
+                    bonus_tokens=0,
+                    tokens_used=F("tokens_used") + remainder,
+                )
+
+            # Sync the in-memory instance so callers get correct values
+            self.refresh_from_db(fields=["tokens_used", "bonus_tokens"])
 
 
 class PaymentTransaction(models.Model):

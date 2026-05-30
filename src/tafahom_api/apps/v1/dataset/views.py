@@ -1,9 +1,11 @@
 from django.utils import timezone
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
+import logging
 import os
+import re
 import subprocess
-import tempfile
 from django.core.files import File
 
 from rest_framework import generics, permissions, status
@@ -17,34 +19,97 @@ from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from .models import DatasetContribution, InvalidDatasetStatusTransition
 from . import serializers
 
+logger = logging.getLogger(__name__)
 
-def convert_to_mp4(source_path):
+# Allowlist of safe video extensions for conversion
+_CONVERTIBLE_EXTENSIONS = {".avi", ".mov"}
+
+# Only alphanumeric, hyphens, underscores and dots in filenames.
+# Anything else is stripped before the path reaches the shell or FFmpeg.
+_SAFE_FILENAME_RE = re.compile(r"[^\w.\-]")
+
+
+def _assert_within_media_root(path: str) -> None:
     """
-    Convert a video file to MP4 using ffmpeg.
+    Raise ValueError if the resolved path escapes MEDIA_ROOT.
+    Defends against path-traversal inputs like  ../../etc/passwd.mp4
+    """
+    media_root = os.path.realpath(settings.MEDIA_ROOT)
+    real_path = os.path.realpath(path)
+    if not real_path.startswith(media_root + os.sep) and real_path != media_root:
+        raise ValueError(
+            f"Security: path '{real_path}' escapes MEDIA_ROOT '{media_root}'"
+        )
+
+
+def convert_to_mp4(source_path: str):
+    """
+    Convert a video file to MP4 using FFmpeg.
+
+    Security hardening applied here:
+    - Path traversal prevention: resolves and asserts the source path stays
+      inside MEDIA_ROOT before any OS operation.
+    - Filename sanitization: strips non-alphanumeric characters from the
+      filename component so malicious names like '-i payload.mp4' cannot
+      inject extra FFmpeg flags (shell=False makes this a belt-and-suspenders
+      defence; the real protection is that args are passed as a list).
+    - The output path is derived from the sanitized source name, not from any
+      user-supplied value.
+
     Returns the path to the converted file, or None if conversion fails.
     """
-    ext = os.path.splitext(source_path)[1].lower()
-    if ext in ('.mp4', '.webm'):
-        return None  # Already browser-compatible, no conversion needed
+    # 1. Resolve and validate the source path is inside MEDIA_ROOT
+    try:
+        _assert_within_media_root(source_path)
+    except ValueError:
+        logger.error("FFmpeg conversion blocked: path traversal detected for '%s'", source_path)
+        return None
 
-    output_path = source_path.rsplit('.', 1)[0] + '_converted.mp4'
+    ext = os.path.splitext(source_path)[1].lower()
+    if ext not in _CONVERTIBLE_EXTENSIONS:
+        # Already browser-compatible (.mp4/.webm) or unsupported — skip
+        return None
+
+    # 2. Sanitize the filename to prevent option-injection into FFmpeg.
+    #    e.g.  "-i something -vf malicious.avi"  becomes  "-i-something--vf-malicious.avi"
+    #    and then FFmpeg receives it as a positional argument, not a flag.
+    dir_name = os.path.dirname(source_path)
+    raw_name = os.path.splitext(os.path.basename(source_path))[0]
+    safe_name = _SAFE_FILENAME_RE.sub("_", raw_name)
+
+    output_path = os.path.join(dir_name, safe_name + "_converted.mp4")
+
+    # Validate the output path as well
+    try:
+        _assert_within_media_root(output_path)
+    except ValueError:
+        logger.error("FFmpeg conversion blocked: output path escapes MEDIA_ROOT")
+        return None
+
     try:
         result = subprocess.run(
             [
-                'ffmpeg', '-y',
-                '-i', source_path,
-                '-c:v', 'libx264',
-                '-c:a', 'aac',
-                '-movflags', 'faststart',
-                output_path
+                "ffmpeg", "-y",
+                "-i", source_path,       # source_path validated above
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "-movflags", "faststart",
+                output_path,             # output_path validated above
             ],
             capture_output=True,
-            timeout=120
+            timeout=120,
         )
         if result.returncode == 0 and os.path.exists(output_path):
             return output_path
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass  # ffmpeg not available or timed out
+        else:
+            logger.warning(
+                "FFmpeg conversion failed (exit %s) for '%s'",
+                result.returncode, source_path,
+            )
+    except subprocess.TimeoutExpired:
+        logger.warning("FFmpeg conversion timed out for '%s'", source_path)
+    except FileNotFoundError:
+        logger.warning("FFmpeg not found — video conversion skipped")
     return None
 
 

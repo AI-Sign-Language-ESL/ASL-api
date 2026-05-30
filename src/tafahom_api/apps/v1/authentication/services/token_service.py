@@ -1,3 +1,13 @@
+"""
+DEPRECATED: Use simplejwt's TokenRefreshView instead.
+
+This module manually decodes refresh tokens WITHOUT checking the
+token blacklist. It exists only as legacy code and MUST NOT be
+wired to any URL endpoint. Use /authentication/token/refresh/
+(or /auth/refresh/) which properly validates via
+rest_framework_simplejwt including blacklist enforcement.
+"""
+
 import jwt
 from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed

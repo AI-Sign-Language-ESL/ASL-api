@@ -17,6 +17,7 @@ def existing_user(db) -> User:
         first_name="Existing",
         last_name="User",
         role="basic_user",
+        is_verified=True,
     )
 
 

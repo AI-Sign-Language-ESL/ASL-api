@@ -9,9 +9,14 @@ from tafahom_api.common.enums import SUBSCRIPTION_STATUS
 def consume_tokens(subscription, amount=1, token_type="translation"):
     """
     Consume tokens from a subscription.
-    Returns True if successful, False if insufficient tokens.
+    Delegates to Subscription.consume() which uses SELECT FOR UPDATE
+    to prevent the double-spend race condition.
+    Returns True if successful, raises ValueError if insufficient tokens.
     """
-    if not subscription.can_consume(amount):
+    try:
+        subscription.consume(amount)
+        return True
+    except ValueError:
         return False
 
     subscription.consume(amount)
@@ -37,12 +42,18 @@ def reward_dataset_contribution(subscription, tokens=10):
     """
     Reward a user with bonus tokens for contributing to the dataset.
     Bonus tokens are added on top of the weekly limit.
+    Uses F() for an atomic DB-level increment to avoid read-modify-write races.
     """
-    from django.db import transaction
+    from django.db.models import F
     from .models import TokenTransaction
+
     with transaction.atomic():
-        subscription.bonus_tokens += tokens
-        subscription.save(update_fields=["bonus_tokens"])
+        # Atomic increment — never races with concurrent reward calls
+        Subscription.objects.filter(pk=subscription.pk).update(
+            bonus_tokens=F("bonus_tokens") + tokens
+        )
+        subscription.refresh_from_db(fields=["bonus_tokens"])
+
         TokenTransaction.objects.create(
             user=subscription.user,
             subscription=subscription,

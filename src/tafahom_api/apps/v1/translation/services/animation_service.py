@@ -1,10 +1,32 @@
 import logging
+from collections import defaultdict
 
 from ..sign_map import (
     ANIMATION_MAP
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_trie(phrase_map):
+    """Build a word-level Trie from phrase → animation map.
+    Returns (root, max_depth) where root is the trie and max_depth is the deepest phrase in words.
+    """
+    root = {}
+    max_depth = 0
+    for phrase, anim in phrase_map.items():
+        words = phrase.split()
+        node = root
+        for word in words:
+            node = node.setdefault(word, {})
+        node["_anim"] = anim
+        if len(words) > max_depth:
+            max_depth = len(words)
+    return root, max_depth
+
+
+# Build trie once at module load
+_TRIE, _MAX_PHRASE_DEPTH = _build_trie(ANIMATION_MAP)
 
 
 def translate_to_animation_names(text):
@@ -34,30 +56,39 @@ def translate_to_animation_names(text):
             "unknown_words": unknown_words,
         }
 
-    # 2️⃣ Greedy phrase/word matching
+    # 2️⃣ Trie-based greedy phrase/word matching (O(n * max_depth))
     words = text_clean.split()
-    i = 0
     n = len(words)
+    i = 0
 
     while i < n:
-        match_found = False
-        # Try matching consecutive sub-phrases of length k starting from maximum down to 1
-        for k in range(n - i, 0, -1):
-            phrase = " ".join(words[i:i+k])
-            if phrase in ANIMATION_MAP:
-                anim = ANIMATION_MAP[phrase]
-                animations.append(anim)
-                if k > 1:
-                    matched_phrases.append(phrase)
-                    logger.info("MATCHED PHRASE   : %r -> %r", phrase, anim)
-                else:
-                    matched_words.append(phrase)
-                    logger.info("MATCHED WORD     : %r -> %r", phrase, anim)
-                i += k
-                match_found = True
+        node = _TRIE
+        last_match = None
+        matched_k = 0
+
+        # Traverse the trie word by word up to max phrase depth
+        limit = min(i + _MAX_PHRASE_DEPTH, n)
+        for j in range(i, limit):
+            word = words[j]
+            if word in node:
+                node = node[word]
+                if "_anim" in node:
+                    last_match = node["_anim"]
+                    matched_k = j - i + 1
+            else:
                 break
 
-        if not match_found:
+        if last_match:
+            phrase = " ".join(words[i:i + matched_k])
+            animations.append(last_match)
+            if matched_k > 1:
+                matched_phrases.append(phrase)
+                logger.info("MATCHED PHRASE   : %r -> %r", phrase, last_match)
+            else:
+                matched_words.append(phrase)
+                logger.info("MATCHED WORD     : %r -> %r", phrase, last_match)
+            i += matched_k
+        else:
             unmatched_word = words[i]
             unknown_words.append(unmatched_word)
             logger.warning("UNKNOWN WORD     : %r", unmatched_word)
