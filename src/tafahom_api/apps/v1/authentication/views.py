@@ -64,10 +64,25 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from tafahom_api.apps.v1.users.models import User
 from tafahom_api.apps.v1.users.serializers import UserResponseSerializer
+from tafahom_api.apps.v1.notifications.models import Notification
 
 from . import models, serializers
 from .services.google_auth import authenticate_with_google
 from tafahom_api.apps.v1.users.serializers import BasicUserRegistrationSerializer, OrganizationRegistrationSerializer
+
+
+def _send_welcome_notification(user):
+    """Send a welcome notification on first login."""
+    if user.last_login is not None:
+        return
+    Notification.objects.create(
+        user=user,
+        type="general",
+        title="Welcome to Tafahom!",
+        message="You're on the Free plan with 50 tokens that recharge every week.",
+    )
+    user.last_login = timezone.now()
+    user.save(update_fields=["last_login"])
 
 
 # =====================================================
@@ -127,6 +142,7 @@ class LoginView(generics.GenericAPIView):
             )
 
         refresh = RefreshToken.for_user(user)
+        _send_welcome_notification(user)
 
         return Response(
             {
@@ -176,6 +192,7 @@ class Login2FAView(generics.GenericAPIView):
             )
 
         refresh = RefreshToken.for_user(user)
+        _send_welcome_notification(user)
 
         return Response(
             {
@@ -220,6 +237,7 @@ class GoogleLoginView(generics.GenericAPIView):
             )
 
         refresh = RefreshToken.for_user(user)
+        _send_welcome_notification(user)
 
         return Response(
             {
