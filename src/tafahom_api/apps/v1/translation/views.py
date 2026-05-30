@@ -356,13 +356,13 @@ class UnityTranslateView(APIView):
             logger.info("=" * 50)
             return Response(empty)
 
-        # 1️⃣ Try NLP text-to-gloss first
+        # 1️⃣ Try NLP text-to-gloss first (fail fast — 5s max)
         try:
             logger.info("[UnitySign] Calling NLP text-to-gloss ...")
             ai_result = asyncio.run(
                 asyncio.wait_for(
                     TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
-                    timeout=settings.AI_TIMEOUT,
+                    timeout=min(getattr(settings, 'AI_TIMEOUT', 30), 5),
                 )
             )
 
@@ -475,6 +475,8 @@ class TranslationAPIView(APIView):
         # Step 4: AI failed/timeout -> Fallback to Sign Matcher
         try:
             fallback_result = match_sign(text)
+            # Cache the fallback result so the next click is instant
+            set_cached_translation(normalized_text, fallback_result)
             return Response(fallback_result, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error("Sign Matcher failed for text: %s. Error: %s", text, e)

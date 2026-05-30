@@ -26,8 +26,21 @@ class Login2FASerializer(serializers.Serializer):
     token = serializers.CharField(max_length=12)
 
 
+class GoogleLoginSerializer(serializers.Serializer):
+    id_token = serializers.CharField(help_text="Google ID token from Google Sign-In")
+
+    def validate_id_token(self, value):
+        if not value or not isinstance(value, str) or len(value) < 20:
+            raise serializers.ValidationError("Invalid ID token format")
+        return value
+
+
 class RefreshTokenSerializer(serializers.Serializer):
     refresh_token = serializers.CharField()
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(help_text="Refresh token to blacklist")
 
 
 # =========================

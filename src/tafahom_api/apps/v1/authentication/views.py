@@ -60,6 +60,7 @@ class VerifyEmailRateThrottle(SimpleRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": ident}
 
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 from tafahom_api.apps.v1.users.models import User
 from tafahom_api.apps.v1.users.serializers import UserResponseSerializer
@@ -151,8 +152,21 @@ class Login2FAView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = User.objects.get(id=serializer.validated_data["user_id"])
-        two_fa = user.two_factor_auth
+        try:
+            user = User.objects.get(id=serializer.validated_data["user_id"])
+        except User.DoesNotExist:
+            return Response(
+                {"detail": _("Invalid authentication code")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        two_fa = getattr(user, "two_factor_auth", None)
+        if not two_fa or not two_fa.is_enabled:
+            return Response(
+                {"detail": _("Invalid authentication code")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         token = serializer.validated_data["token"]
 
         if not (two_fa.verify_token(token) or two_fa.use_backup_code(token)):
@@ -178,20 +192,19 @@ class Login2FAView(generics.GenericAPIView):
 # =====================================================
 
 
-class GoogleLoginView(APIView):
+class GoogleLoginView(generics.GenericAPIView):
+    serializer_class = serializers.GoogleLoginSerializer
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
-        token = request.data.get("token")
-        if not token:
-            return Response(
-                {"detail": _("Token is required")},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        id_token = serializer.validated_data["id_token"]
 
         try:
-            user = authenticate_with_google(token)
+            user = authenticate_with_google(id_token)
             if not user.is_verified:
                 user.is_verified = True
                 user.save(update_fields=["is_verified"])
@@ -430,6 +443,33 @@ class PasswordResetConfirmView(APIView):
             {"detail": _("Password reset successful")},
             status=status.HTTP_200_OK,
         )
+
+
+# =====================================================
+# 🚪 LOGOUT
+# =====================================================
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = serializers.LogoutSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            refresh = RefreshToken(serializer.validated_data["refresh"])
+            refresh.blacklist()
+            return Response(
+                {"detail": _("Successfully logged out")},
+                status=status.HTTP_200_OK,
+            )
+        except TokenError:
+            return Response(
+                {"detail": _("Invalid or expired refresh token")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 # =====================================================

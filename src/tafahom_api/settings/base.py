@@ -168,16 +168,6 @@ TEMPLATES = [
 # =============================================================================
 # AUTH / JWT
 # =============================================================================
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 10,
-}
-
 SIMPLE_JWT = {
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
@@ -221,7 +211,7 @@ WS_MAX_CONNECTION_TIME = WS_MAX_CONNECTION_TIME
 # =============================================================================
 # HYBRID TRANSLATION PIPELINE
 # =============================================================================
-AI_TIMEOUT_SECONDS = getattr(settings, "AI_TIMEOUT_SECONDS", 3) if 'settings' in locals() else 3
+AI_TIMEOUT_SECONDS = 1.5
 
 
 # =============================================================================

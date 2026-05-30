@@ -2,10 +2,12 @@ import secrets
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
+from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
 from tafahom_api.apps.v1.users.models import User
 
 
+@transaction.atomic
 def authenticate_with_google(token: str):
     if not token:
         raise ValueError("Google token is required")

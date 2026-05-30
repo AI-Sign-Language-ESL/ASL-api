@@ -2,6 +2,7 @@ import pytest
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
+from django.test import override_settings
 
 from tafahom_api.apps.v1.authentication import models
 
@@ -23,9 +24,10 @@ class TestLoginAPI:
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert "tokens" in response.data
-        assert "access" in response.data["tokens"]
-        assert "refresh" in response.data["tokens"]
+        assert "access" in response.data
+        assert "refresh" in response.data
+        assert "user" in response.data
+        assert response.data["user"]["email"] == existing_user.email
 
     def test_login_invalid_password(self, client: APIClient, existing_user):
         response: Response = client.post(
@@ -93,22 +95,94 @@ class TestLogin2FAAPI:
 
 @pytest.mark.django_db
 class TestGoogleLoginAPI:
+    def _fresh_cache(self):
+        """Return a unique locmem cache override to avoid throttle sharing."""
+        from uuid import uuid4
+        return override_settings(
+            CACHES={
+                "default": {
+                    "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                    "LOCATION": f"test-google-{uuid4().hex}",
+                }
+            },
+        )
+
     def test_google_login_success(self, client: APIClient, existing_user, monkeypatch):
-        def fake_google_auth(token):
-            return existing_user
+        with self._fresh_cache():
+            def fake_google_auth(token):
+                return existing_user
 
-        monkeypatch.setattr(
-            "tafahom_api.apps.v1.authentication.views.authenticate_with_google",
-            fake_google_auth,
-        )
+            monkeypatch.setattr(
+                "tafahom_api.apps.v1.authentication.views.authenticate_with_google",
+                fake_google_auth,
+            )
 
-        response: Response = client.post(
-            "/authentication/login/google/",
-            {"token": "fake-google-token"},
-        )
+            response: Response = client.post(
+                "/authentication/login/google/",
+                {"id_token": "xxxxxxxxxx-fake-google-id-token-xxxxxxxxxx"},
+            )
 
-        assert response.status_code == status.HTTP_200_OK
-        assert "tokens" in response.data
+            assert response.status_code == status.HTTP_200_OK
+            assert "access" in response.data
+            assert "refresh" in response.data
+            assert "user" in response.data
+            assert response.data["user"]["email"] == existing_user.email
+
+    def test_google_login_missing_token(self, client: APIClient):
+        with self._fresh_cache():
+            response: Response = client.post(
+                "/authentication/login/google/",
+                {},
+            )
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_google_login_invalid_token_format(self, client: APIClient):
+        with self._fresh_cache():
+            response: Response = client.post(
+                "/authentication/login/google/",
+                {"id_token": ""},
+            )
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_google_login_rejected_by_service(self, client: APIClient, monkeypatch):
+        with self._fresh_cache():
+            def fake_google_auth_fail(token):
+                raise ValueError("Google account email is not verified.")
+
+            monkeypatch.setattr(
+                "tafahom_api.apps.v1.authentication.views.authenticate_with_google",
+                fake_google_auth_fail,
+            )
+
+            response: Response = client.post(
+                "/authentication/login/google/",
+                {"id_token": "xxxxxxxxxx-fake-google-token-xxxxxxxxxx"},
+            )
+
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_google_login_existing_user_linking(
+        self, client: APIClient, existing_user, monkeypatch
+    ):
+        with self._fresh_cache():
+            def fake_google_auth(token):
+                existing_user.google_id = "google-sub-123"
+                return existing_user
+
+            monkeypatch.setattr(
+                "tafahom_api.apps.v1.authentication.views.authenticate_with_google",
+                fake_google_auth,
+            )
+
+            response: Response = client.post(
+                "/authentication/login/google/",
+                {"id_token": "xxxxxxxxxx-fake-google-token-xxxxxxxxxx"},
+            )
+
+            assert response.status_code == status.HTTP_200_OK
+            assert response.data["user"]["email"] == existing_user.email
 
 
 # ======================================================
@@ -189,6 +263,65 @@ class TestPasswordAPI:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+# ======================================================
+# 🚪 LOGOUT
+# ======================================================
+
+
+@pytest.mark.django_db
+class TestLogoutAPI:
+    def _fresh_cache(self):
+        """Return a unique locmem cache override to avoid throttle sharing."""
+        from uuid import uuid4
+        return override_settings(
+            CACHES={
+                "default": {
+                    "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                    "LOCATION": f"test-logout-{uuid4().hex}",
+                }
+            },
+        )
+
+    def test_logout_success(self, client: APIClient, existing_user):
+        with self._fresh_cache():
+            from rest_framework_simplejwt.tokens import RefreshToken
+
+            refresh = RefreshToken.for_user(existing_user)
+            access = str(refresh.access_token)
+
+            response: Response = client.post(
+                "/authentication/logout/",
+                {"refresh": str(refresh)},
+                HTTP_AUTHORIZATION=f"Bearer {access}",
+            )
+
+            assert response.status_code == status.HTTP_200_OK
+
+    def test_logout_requires_auth(self, client: APIClient):
+        with self._fresh_cache():
+            response: Response = client.post(
+                "/authentication/logout/",
+                {"refresh": "some-token"},
+            )
+
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_logout_invalid_token(self, client: APIClient, existing_user):
+        with self._fresh_cache():
+            from rest_framework_simplejwt.tokens import RefreshToken
+
+            refresh = RefreshToken.for_user(existing_user)
+            access = str(refresh.access_token)
+
+            response: Response = client.post(
+                "/authentication/logout/",
+                {"refresh": "invalid-token"},
+                HTTP_AUTHORIZATION=f"Bearer {access}",
+            )
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 # ======================================================

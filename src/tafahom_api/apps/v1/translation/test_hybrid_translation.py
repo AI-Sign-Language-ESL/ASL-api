@@ -3,6 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.core.cache import cache
+from django.conf import settings
 import requests
 
 class HybridTranslationTests(TestCase):
@@ -12,6 +13,7 @@ class HybridTranslationTests(TestCase):
         # Clear cache before each test
         cache.clear()
 
+    @patch('tafahom_api.apps.v1.translation.services.ai_service.settings.AI_TEXT_TO_GLOSS_BASE_URL', 'http://mock-ai/translate')
     @patch('tafahom_api.apps.v1.translation.services.ai_service.requests.post')
     def test_successful_ai_translation(self, mock_post):
         # Mock successful AI response
@@ -27,6 +29,7 @@ class HybridTranslationTests(TestCase):
         self.assertEqual(data['source'], 'ai')
         self.assertEqual(data['animations'], ["hello", "world"])
         
+    @patch('tafahom_api.apps.v1.translation.services.ai_service.settings.AI_TEXT_TO_GLOSS_BASE_URL', 'http://mock-ai/translate')
     @patch('tafahom_api.apps.v1.translation.services.ai_service.requests.post')
     def test_ai_timeout_fallback_to_sign_matcher(self, mock_post):
         # Mock Timeout exception
@@ -41,6 +44,7 @@ class HybridTranslationTests(TestCase):
         # "كيف حالك" maps to "kef_halak" in our SYNONYM_MAP
         self.assertEqual(data['animations'], ["kef_halak"])
         
+    @patch('tafahom_api.apps.v1.translation.services.ai_service.settings.AI_TEXT_TO_GLOSS_BASE_URL', 'http://mock-ai/translate')
     @patch('tafahom_api.apps.v1.translation.services.ai_service.requests.post')
     def test_ai_exception_fallback(self, mock_post):
         # Mock Server Error exception
@@ -54,6 +58,7 @@ class HybridTranslationTests(TestCase):
         self.assertEqual(data['source'], 'sign_matcher')
         self.assertEqual(data['animations'], ["nseby"])
         
+    @patch('tafahom_api.apps.v1.translation.services.ai_service.settings.AI_TEXT_TO_GLOSS_BASE_URL', 'http://mock-ai/translate')
     @patch('tafahom_api.apps.v1.translation.services.ai_service.requests.post')
     def test_cache_hit_and_miss(self, mock_post):
         # Setup AI to return "ai_result"
