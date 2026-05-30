@@ -14,9 +14,7 @@ def consume_tokens(subscription, amount=1, token_type="translation"):
     if not subscription.can_consume(amount):
         return False
 
-    with transaction.atomic():
-        subscription.tokens_used += amount
-        subscription.save(update_fields=["tokens_used"])
+    subscription.consume(amount)
     return True
 
 

@@ -328,7 +328,7 @@ class YouTubeTranslateView(APIView):
         )
 class UnityTranslateView(APIView):
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=TextToSignSerializer,
@@ -336,8 +336,12 @@ class UnityTranslateView(APIView):
         summary="Translate text to Unity Animations",
         description="Receives text (Arabic/English) and translates it to animation trigger names used by the Unity WebGL player."
     )
+    @require_token_and_plan(
+        token_cost=10, min_plan="free", feature_name="Sign Generation"
+    )
     def post(self, request):
 
+        subscription = request.subscription
         text = request.data.get("text", "")
 
         logger.info("=" * 50)
@@ -379,6 +383,11 @@ class UnityTranslateView(APIView):
             logger.info("ANIMATIONS   : %s", result["animations"])
             logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
             logger.info("SOURCE       : nlp")
+
+            with transaction.atomic():
+                consume_generation_token(subscription)
+            result["remaining_tokens"] = subscription.remaining_tokens()
+            logger.info("TOKENS       : consumed 10, %s remaining", result["remaining_tokens"])
             logger.info("FINAL RESP   : %s", result)
             logger.info("=" * 50)
 
@@ -404,6 +413,10 @@ class UnityTranslateView(APIView):
                 "unknown_words": [],
                 "source": "unity_matcher",
             }
+            with transaction.atomic():
+                consume_generation_token(subscription)
+            fallback_resp["remaining_tokens"] = subscription.remaining_tokens()
+            logger.info("TOKENS       : consumed 10, %s remaining", fallback_resp["remaining_tokens"])
             logger.info("FINAL RESP   : %s", fallback_resp)
             logger.info("=" * 50)
             return Response(fallback_resp)
@@ -425,6 +438,11 @@ class UnityTranslateView(APIView):
         logger.info("ANIMATIONS   : %s", result["animations"])
         logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
         logger.info("SOURCE       : sign_map")
+
+        with transaction.atomic():
+            consume_generation_token(subscription)
+        result["remaining_tokens"] = subscription.remaining_tokens()
+        logger.info("TOKENS       : consumed 10, %s remaining", result["remaining_tokens"])
         logger.info("FINAL RESP   : %s", result)
         logger.info("=" * 50)
 

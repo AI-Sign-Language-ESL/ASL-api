@@ -70,4 +70,5 @@ class UserTokensSerializer(serializers.Serializer):
     tokens_used = serializers.IntegerField()
     bonus_tokens = serializers.IntegerField()
     remaining_tokens = serializers.IntegerField()
+    weekly_tokens_limit = serializers.IntegerField()
     can_consume = serializers.BooleanField()
