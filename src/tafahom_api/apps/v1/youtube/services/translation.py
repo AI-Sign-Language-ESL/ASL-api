@@ -25,7 +25,7 @@ def process_youtube_translation_task(translation_id):
     try:
         # Step 1: Extract Transcript
         logger.info(f"Extracting transcript for {translation.youtube_url}")
-        transcript = extract_transcript(translation.youtube_url)
+        transcript, source = extract_transcript(translation.youtube_url)
         
         if not transcript:
             raise ValueError("No speech detected in the video")
@@ -58,6 +58,7 @@ def process_youtube_translation_task(translation_id):
         # Step 3: Update DB and Consume Tokens
         with transaction.atomic():
             translation.transcript = transcript
+            translation.source = source
             translation.animation_data = animations_data.get("animations", [])
             translation.status = "completed"
             translation.save()

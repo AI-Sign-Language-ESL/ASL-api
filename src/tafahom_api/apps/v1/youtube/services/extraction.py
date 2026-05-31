@@ -30,26 +30,56 @@ def extract_transcript(youtube_url):
                     transcript = transcript_list.find_generated_transcript(['ar'])
                     logger.info("Found auto-generated Arabic transcript.")
                 except Exception:
-                    logger.info("No Arabic transcript found. Attempting translation...")
-                    # Or find english and translate to arabic if needed, but for now we skip
+                    logger.info("No Arabic transcript found. Falling back to yt-dlp.")
                     pass
             
             if transcript:
                 data = transcript.fetch()
                 text = " ".join([item['text'] for item in data])
-                return text.strip()
+                return text.strip(), "transcript"
                 
         except Exception as e:
-            logger.warning(f"youtube-transcript-api failed: {e}")
+            logger.warning(f"youtube-transcript-api failed for video {video_id}: {e}")
 
     # Step 2: Fallback to yt-dlp
     logger.info("Falling back to yt-dlp + whisper audio extraction.")
-    return _extract_audio_and_transcribe(youtube_url)
+    return _extract_audio_and_transcribe(youtube_url), "yt_dlp"
 
 def _extract_video_id(url):
     import re
+    # Covers https://www.youtube.com/watch?v=... and https://youtu.be/...
     match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', url)
     return match.group(1) if match else None
+
+def get_youtube_video_duration_fast(youtube_url):
+    """
+    Attempts to get video duration from youtube-transcript-api metadata.
+    Returns duration in seconds if successful, else None.
+    Only checks for 'ar' transcripts to align with the Arabic-only rule.
+    """
+    video_id = _extract_video_id(youtube_url)
+    if not video_id:
+        return None
+    try:
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript = None
+        try:
+            transcript = transcript_list.find_transcript(['ar'])
+        except Exception:
+            try:
+                transcript = transcript_list.find_generated_transcript(['ar'])
+            except Exception:
+                pass
+        
+        if transcript:
+            data = transcript.fetch()
+            if data:
+                last_segment = data[-1]
+                duration_sec = last_segment.get('start', 0) + last_segment.get('duration', 0)
+                return int(duration_sec)
+    except Exception as e:
+        logger.warning(f"Fast duration check failed for {video_id}: {e}")
+    return None
 
 def _extract_audio_and_transcribe(youtube_url):
     audio_path = None

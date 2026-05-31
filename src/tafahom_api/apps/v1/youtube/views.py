@@ -19,6 +19,8 @@ from tafahom_api.apps.v1.translation.services.youtube_service import (
     YouTubeProcessingError
 )
 
+from tafahom_api.apps.v1.youtube.services.extraction import get_youtube_video_duration_fast
+
 MAX_VIDEO_DURATION_MINUTES = 30
 
 class YouTubeTranslateView(APIView):
@@ -42,8 +44,12 @@ class YouTubeTranslateView(APIView):
             
         # 2. Check video length
         try:
-            video_info = get_youtube_video_info(youtube_url)
-            duration_seconds = video_info.get("duration", 0)
+            duration_seconds = get_youtube_video_duration_fast(youtube_url)
+            
+            if duration_seconds is None:
+                video_info = get_youtube_video_info(youtube_url)
+                duration_seconds = video_info.get("duration", 0)
+                
             if duration_seconds > (MAX_VIDEO_DURATION_MINUTES * 60):
                 return Response(
                     {"detail": _(f"Video is too long. Maximum allowed duration is {MAX_VIDEO_DURATION_MINUTES} minutes.")},
@@ -51,12 +57,22 @@ class YouTubeTranslateView(APIView):
                 )
         except YouTubeInvalidURLError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except YouTubeAuthError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
-        except YouTubeNotFoundError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
-        except YouTubeProcessingError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except (YouTubeAuthError, YouTubeNotFoundError, YouTubeProcessingError) as e:
+            with transaction.atomic():
+                YouTubeTranslation.objects.create(
+                    user=request.user,
+                    youtube_url=youtube_url,
+                    status="failed",
+                    tokens_used=0,
+                    source="yt_dlp"
+                )
+            return Response(
+                {
+                    "success": False,
+                    "error": "Unable to process this YouTube video. Please upload the video file directly."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:
             return Response(
                 {"detail": _("An unexpected error occurred during validation.")},

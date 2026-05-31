@@ -79,10 +79,10 @@ def _is_auth_error(error_msg: str) -> bool:
     auth_keywords = ["confirm your age", "private", "members only", "bot", "authentication", "login", "cookies are no longer valid", "sign in"]
     return any(keyword in error_msg.lower() for keyword in auth_keywords)
 
-def _handle_yt_dlp_error(e: yt_dlp.utils.DownloadError):
+def _handle_yt_dlp_error(e: yt_dlp.utils.DownloadError, youtube_url: str = None, opts: dict = None):
     """Inspects the yt-dlp DownloadError and raises the appropriate custom exception."""
     error_msg = str(e).lower()
-    logger.error(f"yt-dlp execution failed: {error_msg}")
+    logger.error(f"yt-dlp execution failed for {youtube_url} with options {opts}: {error_msg}")
     
     not_found_keywords = ["unavailable", "removed"]
     
@@ -150,9 +150,9 @@ def get_youtube_video_info(youtube_url: str) -> dict:
                         "title": info.get("title", ""),
                     }
             except yt_dlp.utils.DownloadError as e_retry:
-                _handle_yt_dlp_error(e_retry)
+                _handle_yt_dlp_error(e_retry, youtube_url, opts)
         else:
-            _handle_yt_dlp_error(e)
+            _handle_yt_dlp_error(e, youtube_url, opts)
     except Exception as e:
         logger.exception(f"Unexpected error extracting metadata for {youtube_url}: {str(e)}")
         raise YouTubeProcessingError(_("Failed to process the YouTube video."))
@@ -228,9 +228,9 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
                 logger.info(f"Download successful without cookies. File saved to: {audio_path}")
                 return audio_path
             except yt_dlp.utils.DownloadError as e_retry:
-                _handle_yt_dlp_error(e_retry)
+                _handle_yt_dlp_error(e_retry, youtube_url, opts)
         else:
-            _handle_yt_dlp_error(e)
+            _handle_yt_dlp_error(e, youtube_url, opts)
     except Exception as e:
         logger.exception(f"Unexpected error during yt-dlp download for URL {youtube_url}: {str(e)}")
         raise YouTubeProcessingError(_("Failed to process the YouTube video."))

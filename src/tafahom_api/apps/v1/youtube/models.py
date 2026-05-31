@@ -8,6 +8,12 @@ class YouTubeTranslation(models.Model):
         ("failed", "Failed"),
     ]
 
+    SOURCE_CHOICES = [
+        ("transcript", "Transcript"),
+        ("yt_dlp", "yt-dlp"),
+        ("upload", "Upload"),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -15,6 +21,7 @@ class YouTubeTranslation(models.Model):
     )
     youtube_url = models.URLField()
     transcript = models.TextField(blank=True, null=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="processing")
     tokens_used = models.PositiveIntegerField(default=15)
     animation_data = models.JSONField(blank=True, null=True)
