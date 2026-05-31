@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     gcc \
     libpq-dev \
+    nodejs \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # App directory
