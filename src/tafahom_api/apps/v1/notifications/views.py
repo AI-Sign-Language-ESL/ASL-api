@@ -55,3 +55,11 @@ class NotificationDeleteView(APIView):
             return Response({"detail": "Deleted"})
         except Notification.DoesNotExist:
             return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class NotificationClearAllView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        count, _ = Notification.objects.filter(user=request.user).delete()
+        return Response({"detail": f"Deleted {count} notifications"})

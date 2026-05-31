@@ -3,6 +3,7 @@ from django.utils.html import format_html
 from django.contrib import messages
 from .models import DatasetContribution
 from tafahom_api.apps.v1.billing.services import reward_dataset_contribution
+from tafahom_api.apps.v1.notifications.models import Notification
 
 @admin.register(DatasetContribution)
 class DatasetContributionAdmin(admin.ModelAdmin):
@@ -74,6 +75,15 @@ class DatasetContributionAdmin(admin.ModelAdmin):
                         subscription=contribution.contributor.subscription,
                         tokens=10
                     )
+
+                # 3. Create in-app notification
+                Notification.objects.create(
+                    user=contribution.contributor,
+                    type="contribution_approved",
+                    title="Submission Accepted",
+                    message=f'Congratulations! Your video contribution for "{contribution.word}" has been approved and added to the dataset.',
+                    action_url="/my-contributions",
+                )
                 success_count += 1
             except Exception as e:
                 self.message_user(
@@ -91,5 +101,13 @@ class DatasetContributionAdmin(admin.ModelAdmin):
         for contribution in queryset.filter(status="pending"):
             # This handles the state transition safely
             contribution.reject(request.user)
+            # Create in-app notification
+            Notification.objects.create(
+                user=contribution.contributor,
+                type="contribution_rejected",
+                title="Submission Rejected",
+                message=f'Your submission for "{contribution.word}" was not approved. Please review the feedback and try again.',
+                action_url="/my-contributions",
+            )
             count += 1
         self.message_user(request, f"Rejected {count} contributions.")

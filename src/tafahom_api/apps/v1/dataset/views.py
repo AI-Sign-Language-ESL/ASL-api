@@ -142,7 +142,7 @@ class DatasetContributionCreateView(generics.CreateAPIView):
             type="contribution_submitted",
             title="Contribution Submitted",
             message=f'Thank you for contributing the video for "{contribution.word}". It is now pending review by a supervisor.',
-            action_url="/dataset",
+            action_url="/my-contributions",
         )
 
 
@@ -208,6 +208,16 @@ class ApproveDatasetContributionView(generics.GenericAPIView):
                     tokens=10,
                 )
 
+            # 4. Create in-app notification for contributor
+            from tafahom_api.apps.v1.notifications.models import Notification
+            Notification.objects.create(
+                user=contribution.contributor,
+                type="contribution_approved",
+                title="Submission Accepted",
+                message=f'Congratulations! Your video contribution for "{contribution.word}" has been approved and added to the dataset.',
+                action_url="/my-contributions",
+            )
+
         except DatasetContribution.DoesNotExist:
             return Response(
                 {"detail": "Contribution not found"},
@@ -235,6 +245,16 @@ class RejectDatasetContributionView(generics.GenericAPIView):
         try:
             contribution = DatasetContribution.objects.select_for_update().get(pk=pk)
             contribution.reject(reviewer=request.user)
+
+            # Create in-app notification for contributor
+            from tafahom_api.apps.v1.notifications.models import Notification
+            Notification.objects.create(
+                user=contribution.contributor,
+                type="contribution_rejected",
+                title="Submission Rejected",
+                message=f'Your submission for "{contribution.word}" was not approved. Please review the feedback and try again.',
+                action_url="/my-contributions",
+            )
 
         except DatasetContribution.DoesNotExist:
             return Response(

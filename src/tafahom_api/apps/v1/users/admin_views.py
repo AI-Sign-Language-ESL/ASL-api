@@ -464,9 +464,9 @@ class SupervisorApproveView(APIView):
         Notification.objects.create(
             user=contrib.contributor,
             type="contribution_approved",
-            title="Contribution Approved! 🎉",
-            message=f'Congratulations! Your video for "{contrib.word}" has been accepted! We look forward to more contributions from you!',
-            action_url="/dataset",
+            title="Submission Accepted",
+            message=f'Congratulations! Your video contribution for "{contrib.word}" has been approved and added to the dataset.',
+            action_url="/my-contributions",
         )
 
         return Response({"message": "Contribution approved", "status": contrib.status})
@@ -497,9 +497,9 @@ class SupervisorRejectView(APIView):
         Notification.objects.create(
             user=contrib.contributor,
             type="contribution_rejected",
-            title="Contribution Update",
-            message=f'Your video for "{contrib.word}" was not approved. Please review our guidelines and try again.',
-            action_url="/dataset",
+            title="Submission Rejected",
+            message=f'Your submission for "{contrib.word}" was not approved. Please review the feedback and try again.',
+            action_url="/my-contributions",
         )
 
         return Response({"message": "Contribution rejected", "status": contrib.status})
