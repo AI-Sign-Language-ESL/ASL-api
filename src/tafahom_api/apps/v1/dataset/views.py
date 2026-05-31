@@ -145,6 +145,13 @@ class DatasetContributionCreateView(generics.CreateAPIView):
             action_url="/my-contributions",
         )
 
+        # Send email notification
+        from tafahom_api.common.emails import send_contribution_submitted_email
+        try:
+            send_contribution_submitted_email(self.request.user.email, contribution.word)
+        except Exception:
+            logger.warning("Failed to send contribution submitted email", exc_info=True)
+
 
 class PendingDatasetContributionsView(generics.ListAPIView):
     serializer_class = serializers.DatasetContributionListSerializer
@@ -230,6 +237,25 @@ class ApproveDatasetContributionView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Send approval email
+        from tafahom_api.common.emails import send_contribution_status_email
+        try:
+            send_contribution_status_email(
+                contribution.contributor.email, contribution.word, "approved"
+            )
+        except Exception:
+            logger.warning("Failed to send approval email", exc_info=True)
+
+        # Create in-app notification
+        from tafahom_api.apps.v1.notifications.models import Notification
+        Notification.objects.create(
+            user=contribution.contributor,
+            type="contribution_approved",
+            title="Contribution Approved!",
+            message=f'Congratulations! Your video for "{contribution.word}" has been accepted! You earned 10 bonus tokens.',
+            action_url="/dataset",
+        )
+
         return Response(
             {"detail": "Contribution approved and user rewarded"},
             status=status.HTTP_200_OK,
@@ -268,6 +294,25 @@ class RejectDatasetContributionView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Send rejection email
+        from tafahom_api.common.emails import send_contribution_status_email
+        try:
+            send_contribution_status_email(
+                contribution.contributor.email, contribution.word, "rejected"
+            )
+        except Exception:
+            logger.warning("Failed to send rejection email", exc_info=True)
+
+        # Create in-app notification
+        from tafahom_api.apps.v1.notifications.models import Notification
+        Notification.objects.create(
+            user=contribution.contributor,
+            type="contribution_rejected",
+            title="Contribution Update",
+            message=f'Your video for "{contribution.word}" was not approved. Please review our guidelines and try again.',
+            action_url="/dataset",
+        )
+
         return Response(
             {"detail": "Contribution rejected"},
             status=status.HTTP_200_OK,
@@ -277,6 +322,7 @@ class RejectDatasetContributionView(generics.GenericAPIView):
 class MyDatasetContributionsView(generics.ListAPIView):
     serializer_class = serializers.DatasetContributionListSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         return DatasetContribution.objects.filter(
