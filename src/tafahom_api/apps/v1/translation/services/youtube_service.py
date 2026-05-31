@@ -82,6 +82,7 @@ def _is_auth_error(error_msg: str) -> bool:
 def _handle_yt_dlp_error(e: yt_dlp.utils.DownloadError, youtube_url: str = None, opts: dict = None):
     """Inspects the yt-dlp DownloadError and raises the appropriate custom exception."""
     error_msg = str(e).lower()
+    logger.warning("yt-dlp failed")
     logger.error(f"yt-dlp execution failed for {youtube_url} with options {opts}: {error_msg}")
     
     not_found_keywords = ["unavailable", "removed"]

@@ -19,18 +19,21 @@ def extract_transcript(youtube_url):
     if video_id:
         try:
             logger.info(f"Attempting to fetch transcript for {video_id}")
+            logger.info("Attempting Arabic transcript retrieval")
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             
             transcript = None
             try:
                 transcript = transcript_list.find_transcript(['ar'])
                 logger.info("Found manual Arabic transcript.")
+                logger.info("Arabic transcript found")
             except Exception:
                 try:
                     transcript = transcript_list.find_generated_transcript(['ar'])
                     logger.info("Found auto-generated Arabic transcript.")
+                    logger.info("Arabic transcript found")
                 except Exception:
-                    logger.info("No Arabic transcript found. Falling back to yt-dlp.")
+                    logger.info("Arabic transcript unavailable")
                     pass
             
             if transcript:
@@ -39,10 +42,11 @@ def extract_transcript(youtube_url):
                 return text.strip(), "transcript"
                 
         except Exception as e:
+            logger.info("Arabic transcript unavailable")
             logger.warning(f"youtube-transcript-api failed for video {video_id}: {e}")
 
     # Step 2: Fallback to yt-dlp
-    logger.info("Falling back to yt-dlp + whisper audio extraction.")
+    logger.info("Falling back to yt-dlp")
     return _extract_audio_and_transcribe(youtube_url), "yt_dlp"
 
 def _extract_video_id(url):
@@ -109,6 +113,7 @@ def _extract_audio_and_transcribe(youtube_url):
             timeout=60,
         )
         response.raise_for_status()
+        logger.info("Audio extracted successfully")
         return response.json().get("text", "")
         
     finally:

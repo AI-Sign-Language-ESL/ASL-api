@@ -11,6 +11,7 @@ class YouTubeTranslation(models.Model):
     SOURCE_CHOICES = [
         ("transcript", "Transcript"),
         ("yt_dlp", "yt-dlp"),
+        ("upload_fallback", "Upload Fallback"),
         ("upload", "Upload"),
     ]
 

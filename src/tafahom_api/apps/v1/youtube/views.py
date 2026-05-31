@@ -19,6 +19,9 @@ from tafahom_api.apps.v1.translation.services.youtube_service import (
     YouTubeProcessingError
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 from tafahom_api.apps.v1.youtube.services.extraction import get_youtube_video_duration_fast
 
 MAX_VIDEO_DURATION_MINUTES = 30
@@ -64,14 +67,16 @@ class YouTubeTranslateView(APIView):
                     youtube_url=youtube_url,
                     status="failed",
                     tokens_used=0,
-                    source="yt_dlp"
+                    source="upload_fallback"
                 )
+            logger.info("Returning upload fallback response")
             return Response(
                 {
                     "success": False,
+                    "requires_upload": True,
                     "error": "Unable to process this YouTube video. Please upload the video file directly."
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_200_OK,
             )
         except Exception as e:
             return Response(
