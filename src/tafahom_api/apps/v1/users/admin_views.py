@@ -464,8 +464,8 @@ class SupervisorApproveView(APIView):
         Notification.objects.create(
             user=contrib.contributor,
             type="contribution_approved",
-            title="Submission Accepted",
-            message=f'Congratulations! Your video contribution for "{contrib.word}" has been approved and added to the dataset.',
+            title="Contribution Approved! 🎉",
+            message=f'Congratulations! Your video for "{contrib.word}" has been accepted! We look forward to more contributions from you!',
             action_url="/my-contributions",
         )
 
