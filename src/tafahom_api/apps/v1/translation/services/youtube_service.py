@@ -8,6 +8,10 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 import json
+import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _get_cookies_args() -> list:
@@ -43,8 +47,21 @@ def _get_cookies_args() -> list:
     return args
 
 
+def validate_youtube_url(url: str) -> bool:
+    """Validates if a URL is a valid YouTube video or Shorts link."""
+    youtube_regex = (
+        r'(https?://)?(www\.)?'
+        r'(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        r'(watch\?v=|embed/|v/|.+\?v=|shorts/)?([^&=%\?]{11})'
+    )
+    return bool(re.match(youtube_regex, url))
+
+
 def get_youtube_video_info(youtube_url: str) -> dict:
     """Get video metadata (duration in seconds) using yt-dlp without downloading."""
+    if not validate_youtube_url(youtube_url):
+        raise ValueError(_("Invalid YouTube URL provided."))
+
     cmd = [
         'yt-dlp',
         '--no-playlist',
@@ -64,7 +81,11 @@ def get_youtube_video_info(youtube_url: str) -> dict:
             "duration": info.get("duration", 0),
             "title": info.get("title", ""),
         }
-    except (subprocess.CalledProcessError, json.JSONDecodeError, subprocess.TimeoutExpired) as e:
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr or e.stdout or str(e)
+        logger.error(f"yt-dlp metadata extraction failed for URL {youtube_url}: {error_msg}")
+        raise ValueError(_(f"Failed to get video info. The video may be private, restricted, or the URL is invalid."))
+    except (json.JSONDecodeError, subprocess.TimeoutExpired) as e:
         raise ValueError(_(f"Failed to get video info: {str(e)}"))
 
 
@@ -92,6 +113,9 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     Raises:
         ValueError: If the URL is invalid or download fails
     """
+    if not validate_youtube_url(youtube_url):
+        raise ValueError(_("Invalid YouTube URL provided."))
+
     if not output_dir:
         output_dir = tempfile.mkdtemp(prefix='youtube_')
     
@@ -100,10 +124,11 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     # Generate output template
     output_template = os.path.join(output_dir, '%(id)s.%(ext)s')
     
-    # yt-dlp options for audio extraction
+    # yt-dlp options for audio extraction with fallback (bestaudio or best)
     cmd = [
         'yt-dlp',
         '--no-playlist',              
+        '-f', 'ba/b',
         '--extract-audio',
         '--audio-format', 'mp3',      
         '--audio-quality', '5',
@@ -140,7 +165,8 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr or e.stdout or str(e)
-        raise ValueError(_(f"yt-dlp error: {error_msg}"))
+        logger.error(f"yt-dlp download failed for URL {youtube_url}: {error_msg}")
+        raise ValueError(_(f"YouTube download failed due to a format or restriction error. Please check the video availability."))
     except subprocess.TimeoutExpired:
         raise ValueError(_("YouTube download timed out"))
     except Exception as e:

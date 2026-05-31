@@ -315,11 +315,14 @@ class YouTubeTranslateView(APIView):
                 status=status.HTTP_500_INTERNAL_ERROR,
             )
         finally:
-            # Cleanup temp files
+            # Cleanup temp files and their parent directories completely
             if audio_path and os.path.exists(audio_path):
-                os.remove(audio_path)
-            if wav_path and os.path.exists(wav_path):
-                os.remove(wav_path)
+                import shutil
+                output_dir = os.path.dirname(audio_path)
+                try:
+                    shutil.rmtree(output_dir)
+                except Exception as e:
+                    logger.error("Failed to clean up temp dir %s: %s", output_dir, e)
 
         # 3️⃣ Text-to-Sign (generate sign language video)
         try:
