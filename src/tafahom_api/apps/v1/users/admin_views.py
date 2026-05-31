@@ -465,7 +465,7 @@ class SupervisorApproveView(APIView):
             user=contrib.contributor,
             type="contribution_approved",
             title="Contribution Approved! 🎉",
-            message=f'Your video for "{contrib.word}" was approved. +10 bonus tokens added to your account!',
+            message=f'Congratulations! Your video for "{contrib.word}" has been accepted! We look forward to more contributions from you!',
             action_url="/dataset",
         )
 

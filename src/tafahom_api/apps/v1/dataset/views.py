@@ -135,6 +135,16 @@ class DatasetContributionCreateView(generics.CreateAPIView):
                 except OSError:
                     pass
 
+        # Create in-app notification
+        from tafahom_api.apps.v1.notifications.models import Notification
+        Notification.objects.create(
+            user=self.request.user,
+            type="contribution_submitted",
+            title="Contribution Submitted",
+            message=f'Thank you for contributing the video for "{contribution.word}". It is now pending review by a supervisor.',
+            action_url="/dataset",
+        )
+
 
 class PendingDatasetContributionsView(generics.ListAPIView):
     serializer_class = serializers.DatasetContributionListSerializer

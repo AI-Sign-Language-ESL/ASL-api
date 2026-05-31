@@ -551,6 +551,8 @@ class VerifyEmailView(APIView):
             user = pending.create_user()
             pending.delete()
 
+            _send_welcome_notification(user)
+
             refresh = RefreshToken.for_user(user)
 
             return Response(
