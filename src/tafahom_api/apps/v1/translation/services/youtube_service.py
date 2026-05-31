@@ -93,6 +93,7 @@ def get_youtube_video_info(youtube_url: str) -> dict:
         'yt-dlp',
         '--no-playlist',
         '--dump-json',
+        '--extractor-args', 'youtube:player_client=android',
         '--no-warnings',
         '--quiet',
         youtube_url,
@@ -165,6 +166,7 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         '--extract-audio',
         '--audio-format', 'mp3',      
         '--audio-quality', '5',
+        '--extractor-args', 'youtube:player_client=android',
         '--rm-cache-dir', # Clear cache to avoid corrupted session
     ]
     
