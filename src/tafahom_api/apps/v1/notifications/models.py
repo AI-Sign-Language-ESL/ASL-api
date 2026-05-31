@@ -11,6 +11,7 @@ class Notification(models.Model):
         ("meeting_invite", "Meeting Invite"),
         ("subscription", "Subscription"),
         ("general", "General"),
+        ("youtube", "YouTube"),
     ]
 
     user = models.ForeignKey(

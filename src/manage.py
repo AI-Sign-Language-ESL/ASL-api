@@ -8,6 +8,8 @@ def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tafahom_api.settings.base")
     try:
+        import sys
+        sys.path.insert(0, r"H:\back+front(react)]\ASL-api\venv\Lib\site-packages")
         from django.core.management import execute_from_command_line
     except ImportError as exc:
         raise ImportError(
