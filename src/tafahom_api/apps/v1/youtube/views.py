@@ -11,7 +11,13 @@ from .services.translation import start_youtube_translation
 from tafahom_api.apps.v1.notifications.models import Notification
 from tafahom_api.common.decorators import require_token_and_plan
 
-from tafahom_api.apps.v1.translation.services.youtube_service import get_youtube_video_info
+from tafahom_api.apps.v1.translation.services.youtube_service import (
+    get_youtube_video_info,
+    YouTubeAuthError,
+    YouTubeNotFoundError,
+    YouTubeInvalidURLError,
+    YouTubeProcessingError
+)
 
 MAX_VIDEO_DURATION_MINUTES = 30
 
@@ -43,10 +49,18 @@ class YouTubeTranslateView(APIView):
                     {"detail": _(f"Video is too long. Maximum allowed duration is {MAX_VIDEO_DURATION_MINUTES} minutes.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        except YouTubeInvalidURLError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except YouTubeAuthError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except YouTubeNotFoundError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except YouTubeProcessingError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response(
-                {"detail": _("Could not validate YouTube video: ") + str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": _("An unexpected error occurred during validation.")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         with transaction.atomic():
