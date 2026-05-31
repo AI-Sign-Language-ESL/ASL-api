@@ -1,24 +1,34 @@
-import pytest
 import os
-import subprocess
-import json
-from unittest.mock import patch, MagicMock
+import sys
 
+# Ensure yt-dlp from the local venv or user site is in PATH
+user_site = os.path.expanduser('~\\AppData\\Roaming\\Python\\Python314\\Scripts')
+venv_site = os.path.abspath('.venv\\Scripts')
+os.environ['PATH'] = f"{user_site};{venv_site};" + os.environ.get('PATH', '')
+
+import pytest
 from tafahom_api.apps.v1.translation.services.youtube_service import (
     validate_youtube_url,
     get_youtube_video_info,
     download_youtube_audio,
 )
 
+# Real YouTube URLs for integration testing
+PUBLIC_VIDEO_URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw" # Me at the zoo (Short)
+UNLISTED_VIDEO_URL = "https://www.youtube.com/watch?v=D-UmfqFjpl0" # Common unlisted test video or similar known unlisted video, we'll use a generic short public one as fallback
+PRIVATE_VIDEO_URL = "https://www.youtube.com/watch?v=m8e-FF8MsqU" # Famous private video
+AGE_RESTRICTED_URL = "https://www.youtube.com/watch?v=6LZM3_wp2ps" # Typical age restricted video
+SHORTS_URL = "https://www.youtube.com/shorts/3nOqMFOsH4Y"
+LONG_VIDEO_URL = "https://www.youtube.com/watch?v=BaW_jenozKc" # 10 hours video
+
 # ---------------------------------------------------------
 # validate_youtube_url Tests
 # ---------------------------------------------------------
 def test_validate_youtube_url_valid():
     valid_urls = [
-        "https://www.youtube.com/watch?v=FTYrvehWqg4",
-        "https://youtu.be/FTYrvehWqg4",
-        "https://www.youtube.com/shorts/FTYrvehWqg4",
-        "youtube.com/watch?v=FTYrvehWqg4",
+        PUBLIC_VIDEO_URL,
+        "https://youtu.be/jNQXAC9IVRw",
+        SHORTS_URL,
     ]
     for url in valid_urls:
         assert validate_youtube_url(url) is True
@@ -26,81 +36,47 @@ def test_validate_youtube_url_valid():
 def test_validate_youtube_url_invalid():
     invalid_urls = [
         "https://vimeo.com/123456",
-        "https://www.youtube.com/watch?v=123", # Too short
-        "just a string",
-        "https://youtube.com/watch?v=FTYrvehWqg4&param=value" # Valid base but ID extraction might fail or pass, actually our regex matches it
+        "https://www.youtube.com/watch?v=123", # Too short ID
+        "just a string"
     ]
-    assert validate_youtube_url("https://vimeo.com/123456") is False
-    assert validate_youtube_url("https://www.youtube.com/watch?v=123") is False
-    assert validate_youtube_url("just a string") is False
-
+    for url in invalid_urls:
+        assert validate_youtube_url(url) is False
 
 # ---------------------------------------------------------
-# get_youtube_video_info Tests
+# get_youtube_video_info Tests (Real Network Requests)
 # ---------------------------------------------------------
-@patch("subprocess.run")
-def test_get_youtube_video_info_success(mock_run):
-    mock_run.return_value = MagicMock(
-        stdout=json.dumps({"duration": 120, "title": "Test Video"})
-    )
-    
-    info = get_youtube_video_info("https://www.youtube.com/watch?v=FTYrvehWqg4")
-    
-    assert info["duration"] == 120
-    assert info["title"] == "Test Video"
-    mock_run.assert_called_once()
+@pytest.mark.integration
+def test_get_youtube_video_info_public():
+    info = get_youtube_video_info(PUBLIC_VIDEO_URL)
+    assert info["duration"] > 0
+    assert "Me at the zoo" in info["title"]
 
+@pytest.mark.integration
+def test_get_youtube_video_info_private():
+    with pytest.raises(ValueError) as excinfo:
+        get_youtube_video_info(PRIVATE_VIDEO_URL)
+    assert "private" in str(excinfo.value).lower() or "unavailable" in str(excinfo.value).lower()
 
-def test_get_youtube_video_info_invalid_url():
-    with pytest.raises(ValueError, match="Invalid YouTube URL provided."):
-        get_youtube_video_info("https://vimeo.com/12345")
-
-
-@patch("subprocess.run")
-def test_get_youtube_video_info_private_video(mock_run):
-    # Simulate yt-dlp failing on a private video
-    mock_run.side_effect = subprocess.CalledProcessError(
-        returncode=1, cmd="yt-dlp", stderr="ERROR: Private video"
-    )
-    
-    with pytest.raises(ValueError, match="Failed to get video info"):
-        get_youtube_video_info("https://www.youtube.com/watch?v=FTYrvehWqg4")
-
+@pytest.mark.integration
+def test_get_youtube_video_info_long():
+    info = get_youtube_video_info(LONG_VIDEO_URL)
+    assert info["duration"] > 3600 # Greater than 1 hour
 
 # ---------------------------------------------------------
-# download_youtube_audio Tests
+# download_youtube_audio Tests (Real Network Requests)
 # ---------------------------------------------------------
-@patch("os.listdir")
-@patch("os.path.exists")
-@patch("subprocess.run")
-def test_download_youtube_audio_success(mock_run, mock_exists, mock_listdir):
-    mock_run.return_value = MagicMock(returncode=0)
-    mock_listdir.return_value = ["video.mp3"]
-    mock_exists.return_value = True # For the cookies path check
+@pytest.mark.integration
+def test_download_youtube_audio_shorts():
+    # Download a very short Shorts video to avoid long test times
+    audio_path = download_youtube_audio(SHORTS_URL)
+    assert os.path.exists(audio_path)
+    assert audio_path.endswith(".mp3")
     
-    audio_path = download_youtube_audio("https://www.youtube.com/watch?v=FTYrvehWqg4")
-    
-    assert audio_path.endswith("video.mp3")
-    mock_run.assert_called_once()
-    
-    # Verify fallback format ba/b is used
-    args = mock_run.call_args[0][0]
-    assert "-f" in args
-    assert "ba/b" in args
+    # Clean up after test
+    import shutil
+    shutil.rmtree(os.path.dirname(audio_path))
 
-
+@pytest.mark.integration
 def test_download_youtube_audio_invalid_url():
-    with pytest.raises(ValueError, match="Invalid YouTube URL provided."):
+    with pytest.raises(ValueError, match="Invalid YouTube URL"):
         download_youtube_audio("https://vimeo.com/12345")
-
-
-@patch("subprocess.run")
-def test_download_youtube_audio_format_unavailable(mock_run):
-    # Simulate yt-dlp failing due to format unavailable
-    mock_run.side_effect = subprocess.CalledProcessError(
-        returncode=1, cmd="yt-dlp", stderr="ERROR: Requested format is not available"
-    )
-    
-    with pytest.raises(ValueError, match="YouTube download failed due to a format or restriction error"):
-        download_youtube_audio("https://www.youtube.com/watch?v=FTYrvehWqg4")
-

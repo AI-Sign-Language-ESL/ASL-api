@@ -42,9 +42,34 @@ def _get_cookies_args() -> list:
         cookies_path = '/app/yt-dlp/cookies.txt'
 
     if cookies_path and os.path.exists(cookies_path):
+        logger.info(f"Loaded yt-dlp cookies from: {cookies_path}")
         args.extend(['--cookies', cookies_path])
+    else:
+        logger.warning("No valid cookies.txt found. Proceeding with unauthenticated request.")
         
     return args
+
+
+def _parse_yt_dlp_error(error_msg: str) -> str:
+    """Parses yt-dlp stderr to return user-friendly API messages."""
+    error_msg = error_msg.lower()
+    
+    if "video unavailable" in error_msg or "video has been removed" in error_msg:
+        return _("This video is unavailable.")
+    if "private video" in error_msg:
+        return _("This video is private.")
+    if "sign in to confirm your age" in error_msg or "age-restricted" in error_msg:
+        return _("This video requires authentication.")
+    if "geo-restricted" in error_msg or "not available in your country" in error_msg:
+        return _("This video is not available in the current region.")
+    if "requested format is not available" in error_msg:
+        return _("No compatible download format was found.")
+    if "cookies are no longer valid" in error_msg or "sign in to confirm you" in error_msg or "authentication" in error_msg:
+        return _("Authentication is required to access this video.")
+    if "incomplete" in error_msg or "url" in error_msg:
+        return _("Invalid YouTube URL.")
+    
+    return _("Failed to process the YouTube video.")
 
 
 def validate_youtube_url(url: str) -> bool:
@@ -60,8 +85,10 @@ def validate_youtube_url(url: str) -> bool:
 def get_youtube_video_info(youtube_url: str) -> dict:
     """Get video metadata (duration in seconds) using yt-dlp without downloading."""
     if not validate_youtube_url(youtube_url):
-        raise ValueError(_("Invalid YouTube URL provided."))
+        logger.error(f"Invalid URL attempted: {youtube_url}")
+        raise ValueError(_("Invalid YouTube URL."))
 
+    logger.info(f"Extracting metadata for URL: {youtube_url}")
     cmd = [
         'yt-dlp',
         '--no-playlist',
@@ -77,16 +104,20 @@ def get_youtube_video_info(youtube_url: str) -> dict:
             cmd, capture_output=True, text=True, check=True, timeout=30
         )
         info = json.loads(result.stdout)
+        
+        logger.info(f"Successfully extracted metadata: ID={info.get('id')}, Title={info.get('title')}, Duration={info.get('duration')}")
+        
         return {
             "duration": info.get("duration", 0),
             "title": info.get("title", ""),
         }
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr or e.stdout or str(e)
-        logger.error(f"yt-dlp metadata extraction failed for URL {youtube_url}: {error_msg}")
-        raise ValueError(_(f"Failed to get video info. The video may be private, restricted, or the URL is invalid."))
+        logger.error(f"yt-dlp metadata extraction failed for URL {youtube_url}:\n{error_msg}")
+        raise ValueError(_parse_yt_dlp_error(error_msg))
     except (json.JSONDecodeError, subprocess.TimeoutExpired) as e:
-        raise ValueError(_(f"Failed to get video info: {str(e)}"))
+        logger.error(f"Timeout or JSON decode error extracting metadata: {str(e)}")
+        raise ValueError(_("Failed to process the YouTube video."))
 
 
 def calculate_youtube_token_cost(duration_seconds: int) -> int:
@@ -114,8 +145,10 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         ValueError: If the URL is invalid or download fails
     """
     if not validate_youtube_url(youtube_url):
-        raise ValueError(_("Invalid YouTube URL provided."))
+        logger.error(f"Invalid URL attempted: {youtube_url}")
+        raise ValueError(_("Invalid YouTube URL."))
 
+    logger.info(f"Starting download for URL: {youtube_url} with format 'ba/b'")
     if not output_dir:
         output_dir = tempfile.mkdtemp(prefix='youtube_')
     
@@ -145,6 +178,7 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     ])
     
     try:
+        logger.info("Executing yt-dlp download...")
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -158,16 +192,20 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         audio_files = [f for f in files if f.endswith('.mp3')]
         
         if not audio_files:
-            raise ValueError(_("Failed to download audio from YouTube URL"))
+            logger.error(f"yt-dlp succeeded but no .mp3 file was found in {output_dir}")
+            raise ValueError(_("Failed to process the YouTube video."))
         
-        # Return the first mp3 file found
-        return os.path.join(output_dir, audio_files[0])
+        audio_path = os.path.join(output_dir, audio_files[0])
+        logger.info(f"Download successful. File saved to: {audio_path}")
+        return audio_path
         
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr or e.stdout or str(e)
-        logger.error(f"yt-dlp download failed for URL {youtube_url}: {error_msg}")
-        raise ValueError(_(f"YouTube download failed due to a format or restriction error. Please check the video availability."))
+        logger.error(f"yt-dlp download failed for URL {youtube_url}\nStack trace / Error Log:\n{error_msg}")
+        raise ValueError(_parse_yt_dlp_error(error_msg))
     except subprocess.TimeoutExpired:
-        raise ValueError(_("YouTube download timed out"))
+        logger.error(f"yt-dlp download timed out after 120s for URL {youtube_url}")
+        raise ValueError(_("Failed to process the YouTube video."))
     except Exception as e:
-        raise ValueError(_(f"YouTube download failed: {str(e)}"))
+        logger.exception(f"Unexpected error during yt-dlp download for URL {youtube_url}: {str(e)}")
+        raise ValueError(_("Failed to process the YouTube video."))
