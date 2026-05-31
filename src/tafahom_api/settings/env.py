@@ -72,6 +72,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 # AI SERVICES (ENV-DRIVEN, NO HARDCODE)
 # =============================================================================
 AI_TIMEOUT = int(os.getenv("AI_TIMEOUT", 30))
+AI_BASE_URL = os.getenv("AI_BASE_URL")
 
 AI_STT_BASE_URL = os.getenv("AI_STT_BASE_URL")
 AI_TTS_BASE_URL = os.getenv("AI_TTS_BASE_URL")
