@@ -519,7 +519,7 @@ class VerifyEmailView(APIView):
                 pending.save(update_fields=["is_verified"])
                 return Response(
                     {
-                        "message": _("Email verified. You must subscribe to the Premium plan to activate your account."),
+                        "message": _("Email verified. You must subscribe to the Enterprise plan to activate your account."),
                         "requires_payment": True,
                         "registration_type": pending.registration_type,
                         "email": pending.email,
@@ -531,7 +531,7 @@ class VerifyEmailView(APIView):
                 org = pending.organization
                 has_premium = False
                 if org and hasattr(org, 'subscription'):
-                    if org.subscription.plan.plan_type == "premium" and org.subscription.status == "active":
+                    if org.subscription.plan.plan_type == "enterprise" and org.subscription.status == "active":
                         has_premium = True
                 
                 if not has_premium:
@@ -539,7 +539,7 @@ class VerifyEmailView(APIView):
                     pending.save(update_fields=["is_verified"])
                     return Response(
                         {
-                            "message": _("Email verified. Your organization must subscribe to the Premium plan to activate your account."),
+                            "message": _("Email verified. Your organization must subscribe to the Enterprise plan to activate your account."),
                             "requires_payment": True,
                             "registration_type": pending.registration_type,
                             "email": pending.email,

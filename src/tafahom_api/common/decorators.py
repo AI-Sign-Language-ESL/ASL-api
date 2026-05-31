@@ -10,8 +10,9 @@ from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 
 TOKEN_COSTS = {
     "translation": 5,
-    "generation": 10,
-    "speech_to_text": 5,
+    "generation": 7,
+    "speech_to_text": 2,
+    "history_save": 2,
 }
 
 
@@ -41,7 +42,7 @@ def require_token_and_plan(token_cost=0, min_plan="free", feature_name=None, cos
             actual_cost = TOKEN_COSTS.get(cost_type, token_cost) if cost_type else token_cost
 
             # 1. Plan Check
-            plan_rank = {"free": 0, "basic": 1, "go": 2, "premium": 3}
+            plan_rank = {"free": 0, "basic": 1, "go": 2, "enterprise": 3}
             if plan_rank.get(subscription.plan.plan_type, 0) < plan_rank.get(min_plan, 0):
                 return Response(
                     {"detail": f"This feature ({feature_name or 'feature'}) is available on {min_plan.upper()} plans and above."},

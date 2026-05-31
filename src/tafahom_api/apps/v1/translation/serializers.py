@@ -63,6 +63,7 @@ class TranslationRequestListSerializer(serializers.ModelSerializer):
             "created_at",
             "input_type",
             "output_type",
+            "saved",
         ]
 
 

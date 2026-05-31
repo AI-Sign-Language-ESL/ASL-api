@@ -94,9 +94,9 @@ class MeetingConsumer(AsyncWebsocketConsumer):
             return False, "No active subscription found. Upgrade to GO."
 
         # Plan Check
-        plan_rank = {"free": 0, "basic": 1, "go": 2, "premium": 3}
+        plan_rank = {"free": 0, "basic": 1, "go": 2, "enterprise": 3}
         if plan_rank.get(subscription.plan.plan_type, 0) < 2: # GO plan is rank 2
-            return False, "Meetings require a GO or PREMIUM plan."
+            return False, "Meetings require a GO or Enterprise plan."
 
         # Token Check
         if not subscription.can_consume(50):

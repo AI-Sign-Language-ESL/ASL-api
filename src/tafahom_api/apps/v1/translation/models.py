@@ -105,6 +105,9 @@ class TranslationRequest(models.Model):
     tokens_used = models.PositiveIntegerField(default=0)
     processing_time = models.FloatField(blank=True, null=True)
 
+    # 🔖 History save
+    saved = models.BooleanField(default=False)
+
     # 🕒 Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(blank=True, null=True)

@@ -12,10 +12,10 @@ def seed_subscription_plans():
         return
 
     plans = [
-        {"name": "Free Plan", "plan_type": "free", "weekly_tokens_limit": 50, "price": 0.00},
-        {"name": "Basic Plan", "plan_type": "basic", "weekly_tokens_limit": 200, "price": 9.99},
-        {"name": "GO Plan", "plan_type": "go", "weekly_tokens_limit": 400, "price": 19.99},
-        {"name": "Premium Plan", "plan_type": "premium", "weekly_tokens_limit": 600, "price": 29.99},
+        {"name": "Free Plan", "plan_type": "free", "weekly_tokens_limit": 50, "price": 0.00, "currency": "EGP"},
+        {"name": "Basic Plan", "plan_type": "basic", "weekly_tokens_limit": 250, "price": 100.00, "currency": "EGP"},
+        {"name": "GO Plan", "plan_type": "go", "weekly_tokens_limit": 500, "price": 175.00, "currency": "EGP"},
+        {"name": "Enterprise Plan", "plan_type": "enterprise", "weekly_tokens_limit": 2000, "price": 750.00, "currency": "EGP"},
     ]
 
     try:

@@ -273,7 +273,7 @@ class PendingRegistration(models.Model):
             job_title=self.job_title,
         )
 
-        plan = SubscriptionPlan.objects.get(plan_type="premium")
+        plan = SubscriptionPlan.objects.get(plan_type="enterprise")
         Subscription.objects.update_or_create(
             user=user,
             defaults={"plan": plan, "status": "active"}

@@ -7,6 +7,46 @@ import subprocess
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
+import json
+
+
+def get_youtube_video_info(youtube_url: str) -> dict:
+    """Get video metadata (duration in seconds) using yt-dlp without downloading."""
+    cmd = [
+        'yt-dlp',
+        '--no-playlist',
+        '--dump-json',
+        '--no-warnings',
+        '--quiet',
+        youtube_url,
+    ]
+    cookies_path = '/app/yt-dlp/cookies.txt'
+    if os.path.exists(cookies_path):
+        cmd.extend(['--cookies', cookies_path])
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, timeout=30
+        )
+        info = json.loads(result.stdout)
+        return {
+            "duration": info.get("duration", 0),
+            "title": info.get("title", ""),
+        }
+    except (subprocess.CalledProcessError, json.JSONDecodeError, subprocess.TimeoutExpired) as e:
+        raise ValueError(_(f"Failed to get video info: {str(e)}"))
+
+
+def calculate_youtube_token_cost(duration_seconds: int) -> int:
+    """Calculate token cost based on video duration.
+    10 tokens for <5 min, 12 for 5-15 min, 15 for >15 min."""
+    if duration_seconds < 300:
+        return 10
+    elif duration_seconds < 900:
+        return 12
+    return 15
+
+
 def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     """
     Download audio from a YouTube URL and return the path to the audio file.

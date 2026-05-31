@@ -136,3 +136,9 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 if ENVIRONMENT == "PROD" and not GOOGLE_CLIENT_ID:
     raise RuntimeError("GOOGLE_CLIENT_ID is required in PROD")
+
+# =============================================================================
+# FEHM (CHATBOT)
+# =============================================================================
+FEHM_MAX_CONVERSATIONS_PER_USER = int(os.getenv("FEHM_MAX_CONVERSATIONS_PER_USER", 100))
+FEHM_MESSAGE_RATE_LIMIT = os.getenv("FEHM_MESSAGE_RATE_LIMIT", "20/minute")

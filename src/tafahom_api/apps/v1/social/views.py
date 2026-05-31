@@ -7,7 +7,7 @@ from tafahom_api.apps.v1.billing.models import TokenTransaction
 
 class YouTubeIntegrationView(APIView):
     """
-    Placeholder for YouTube integration. Available for GO and Premium plans.
+    Placeholder for YouTube integration. Available for GO and Enterprise plans.
     """
     @require_token_and_plan(token_cost=30, min_plan="go", feature_name="YouTube Integration")
     def post(self, request):

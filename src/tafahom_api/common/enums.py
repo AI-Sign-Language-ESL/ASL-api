@@ -84,7 +84,7 @@ PLAN_TYPES = [
     ("free", _("Free")),
     ("basic", _("Basic")),
     ("go", _("GO")),
-    ("premium", _("Premium")),
+    ("enterprise", _("Enterprise")),
 ]
 
 TOKEN_TRANSACTION_TYPES = [
@@ -92,6 +92,23 @@ TOKEN_TRANSACTION_TYPES = [
     ("earned", _("Earned")),
 ]
 
+
+
+# =========================
+# FEHM (CHATBOT)
+# =========================
+
+CONVERSATION_STATUS = [
+    ("active", _("Active")),
+    ("archived", _("Archived")),
+    ("deleted", _("Deleted")),
+]
+
+MESSAGE_ROLES = [
+    ("user", _("User")),
+    ("assistant", _("Assistant")),
+    ("system", _("System")),
+]
 
 
 # ✅ FIX: Added "approved" to pending so Admin can approve immediately
