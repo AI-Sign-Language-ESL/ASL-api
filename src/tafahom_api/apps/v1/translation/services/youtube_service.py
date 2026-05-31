@@ -10,6 +10,39 @@ from django.utils.translation import gettext_lazy as _
 import json
 
 
+def _get_cookies_args() -> list:
+    """Helper to get the appropriate cookie arguments for yt-dlp."""
+    args = []
+    
+    # 1. Try browser cookies via environment variable (useful for local dev on Windows/Mac)
+    browser = os.environ.get('YTDLP_COOKIES_FROM_BROWSER')
+    if browser:
+        args.extend(['--cookies-from-browser', browser])
+        return args
+        
+    # 2. Try explicit path via settings or environment
+    cookies_path = getattr(settings, 'YTDLP_COOKIES_PATH', None) or os.environ.get('YTDLP_COOKIES_PATH')
+    
+    # 3. Try project root cookies.txt
+    if not cookies_path and hasattr(settings, 'BASE_DIR'):
+        # BASE_DIR is usually src/tafahom_api, go up two levels to get to ASL-api
+        try:
+            root_cookies = os.path.join(settings.BASE_DIR, '..', '..', 'cookies.txt')
+            if os.path.exists(root_cookies):
+                cookies_path = root_cookies
+        except Exception:
+            pass
+
+    # 4. Fallback to Docker path
+    if not cookies_path:
+        cookies_path = '/app/yt-dlp/cookies.txt'
+
+    if cookies_path and os.path.exists(cookies_path):
+        args.extend(['--cookies', cookies_path])
+        
+    return args
+
+
 def get_youtube_video_info(youtube_url: str) -> dict:
     """Get video metadata (duration in seconds) using yt-dlp without downloading."""
     cmd = [
@@ -20,9 +53,7 @@ def get_youtube_video_info(youtube_url: str) -> dict:
         '--quiet',
         youtube_url,
     ]
-    cookies_path = '/app/yt-dlp/cookies.txt'
-    if os.path.exists(cookies_path):
-        cmd.extend(['--cookies', cookies_path])
+    cmd.extend(_get_cookies_args())
 
     try:
         result = subprocess.run(
@@ -80,10 +111,7 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         '--rm-cache-dir', # Clear cache to avoid corrupted session
     ]
     
-    # If a cookies.txt file exists (for bypassing bot protections on servers)
-    cookies_path = '/app/yt-dlp/cookies.txt'
-    if os.path.exists(cookies_path):
-        cmd.extend(['--cookies', cookies_path])
+    cmd.extend(_get_cookies_args())
         
     cmd.extend([
         '--output', output_template,
