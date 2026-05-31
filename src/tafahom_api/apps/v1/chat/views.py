@@ -45,7 +45,7 @@ WELCOME_DATA = {
         },
         {
             "id": "upgrade",
-            "title": "Unlock Premium",
+            "title": "Unlock Basic",
             "description": "Get unlimited translations, priority processing, and more",
             "icon": "workspace_premium",
             "buttons": [
@@ -158,9 +158,27 @@ class ChatHistoryView(APIView):
 
 
 class ChatWelcomeView(APIView):
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        serializer = WelcomeDataSerializer(data=WELCOME_DATA)
+        data = dict(WELCOME_DATA)  # shallow copy
+
+        # Conditionally remove upgrade content based on user's plan
+        user = request.user
+        plan_type = getattr(getattr(user, 'subscription', None), 'plan', None)
+        plan = getattr(plan_type, 'plan_type', None) if plan_type else None
+
+        if plan and plan not in ('free', 'basic', None):
+            # Remove "premium" quick action
+            data["quick_actions"] = [
+                qa for qa in data["quick_actions"]
+                if qa.get("id") != "premium"
+            ]
+            # Remove "upgrade" action card
+            data["action_cards"] = [
+                ac for ac in data["action_cards"]
+                if ac.get("id") != "upgrade"
+            ]
+
+        serializer = WelcomeDataSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
