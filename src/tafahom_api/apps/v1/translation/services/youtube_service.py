@@ -74,15 +74,19 @@ def _get_ydl_opts(base_opts: dict = None) -> dict:
         
     return opts
 
+def _is_auth_error(error_msg: str) -> bool:
+    """Check if the error message is an authentication error."""
+    auth_keywords = ["confirm your age", "private", "members only", "bot", "authentication", "login", "cookies are no longer valid", "sign in"]
+    return any(keyword in error_msg.lower() for keyword in auth_keywords)
+
 def _handle_yt_dlp_error(e: yt_dlp.utils.DownloadError):
     """Inspects the yt-dlp DownloadError and raises the appropriate custom exception."""
     error_msg = str(e).lower()
     logger.error(f"yt-dlp execution failed: {error_msg}")
     
-    auth_keywords = ["confirm your age", "private", "members only", "bot", "authentication", "login", "cookies are no longer valid", "sign in"]
     not_found_keywords = ["unavailable", "removed"]
     
-    if any(keyword in error_msg for keyword in auth_keywords):
+    if _is_auth_error(error_msg):
         raise YouTubeAuthError(_("This YouTube video requires authentication or is not publicly accessible. Please use a public video URL."))
     
     if any(keyword in error_msg for keyword in not_found_keywords):
@@ -132,7 +136,23 @@ def get_youtube_video_info(youtube_url: str) -> dict:
                 "title": info.get("title", ""),
             }
     except yt_dlp.utils.DownloadError as e:
-        _handle_yt_dlp_error(e)
+        if 'cookiefile' in opts and _is_auth_error(str(e)):
+            logger.warning("Authentication failed with cookies. Retrying without cookies...")
+            opts.pop('cookiefile', None)
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl_retry:
+                    info = ydl_retry.extract_info(youtube_url, download=False)
+                    if not info:
+                        raise YouTubeProcessingError(_("Failed to retrieve video metadata."))
+                    logger.info(f"Successfully extracted metadata without cookies: ID={info.get('id')}")
+                    return {
+                        "duration": info.get("duration", 0),
+                        "title": info.get("title", ""),
+                    }
+            except yt_dlp.utils.DownloadError as e_retry:
+                _handle_yt_dlp_error(e_retry)
+        else:
+            _handle_yt_dlp_error(e)
     except Exception as e:
         logger.exception(f"Unexpected error extracting metadata for {youtube_url}: {str(e)}")
         raise YouTubeProcessingError(_("Failed to process the YouTube video."))
@@ -180,7 +200,6 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([youtube_url])
             
-        # Find the downloaded file
         files = os.listdir(output_dir)
         audio_files = [f for f in files if f.endswith('.mp3')]
         
@@ -193,7 +212,25 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
         return audio_path
         
     except yt_dlp.utils.DownloadError as e:
-        _handle_yt_dlp_error(e)
+        if 'cookiefile' in opts and _is_auth_error(str(e)):
+            logger.warning("Download failed with cookies. Retrying without cookies...")
+            opts.pop('cookiefile', None)
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl_retry:
+                    ydl_retry.download([youtube_url])
+                
+                files = os.listdir(output_dir)
+                audio_files = [f for f in files if f.endswith('.mp3')]
+                if not audio_files:
+                    raise YouTubeProcessingError(_("Failed to process the YouTube video."))
+                
+                audio_path = os.path.join(output_dir, audio_files[0])
+                logger.info(f"Download successful without cookies. File saved to: {audio_path}")
+                return audio_path
+            except yt_dlp.utils.DownloadError as e_retry:
+                _handle_yt_dlp_error(e_retry)
+        else:
+            _handle_yt_dlp_error(e)
     except Exception as e:
         logger.exception(f"Unexpected error during yt-dlp download for URL {youtube_url}: {str(e)}")
         raise YouTubeProcessingError(_("Failed to process the YouTube video."))
