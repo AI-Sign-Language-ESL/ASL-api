@@ -65,6 +65,31 @@ def send_password_reset_email(user_email, token):
     email.send(fail_silently=True)
 
 
+def send_contribution_submitted_email(user_email, word):
+    subject = str(_("We Received Your TAFAHOM Contribution"))
+    html_message = render_to_string('emails/contribution_submitted.html', {'word': word})
+    plain_message = strip_tags(html_message)
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "webmaster@localhost")
+
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=plain_message,
+        from_email=from_email,
+        to=[user_email],
+    )
+    email.attach_alternative(html_message, "text/html")
+
+    logo_path = os.path.join(settings.BASE_DIR, 'templates', 'emails', 'tafahom-logo.png')
+    if os.path.exists(logo_path):
+        with open(logo_path, 'rb') as f:
+            logo = MIMEImage(f.read())
+            logo.add_header('Content-ID', '<tafahom_logo>')
+            logo.add_header('Content-Disposition', 'inline', filename='tafahom-logo.png')
+            email.attach(logo)
+
+    email.send(fail_silently=True)
+
+
 def send_contribution_status_email(user_email, word, status):
     """
     Sends an email notifying the user about their contribution status.
