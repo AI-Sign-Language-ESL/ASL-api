@@ -136,8 +136,14 @@ class Subscription(models.Model):
                     tokens_used=F("tokens_used") + remainder,
                 )
 
+            # Mark cycle start on first spend from weekly allowance
+            if locked.tokens_used == 0 and locked.bonus_tokens < amount:
+                Subscription.objects.filter(pk=self.pk).update(
+                    last_reset=timezone.now()
+                )
+
             # Sync the in-memory instance so callers get correct values
-            self.refresh_from_db(fields=["tokens_used", "bonus_tokens"])
+            self.refresh_from_db(fields=["tokens_used", "bonus_tokens", "last_reset"])
 
 
 class PaymentTransaction(models.Model):

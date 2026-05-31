@@ -143,6 +143,7 @@ class MyTokensView(generics.GenericAPIView):
             "tokens_used": subscription.tokens_used,
             "bonus_tokens": subscription.bonus_tokens,
             "remaining_tokens": subscription.remaining_tokens(),
+            "weekly_tokens_limit": subscription.plan.weekly_tokens_limit,
             "can_consume": subscription.can_consume(),
         }
 

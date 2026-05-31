@@ -1,4 +1,7 @@
 from functools import wraps
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework import status
 from django.core.exceptions import ObjectDoesNotExist
@@ -48,8 +51,15 @@ def require_token_and_plan(token_cost=0, min_plan="free", feature_name=None, cos
 
             # 2. Token Check
             if not subscription.can_consume(actual_cost):
+                next_reset = timezone.now() + timedelta(days=7)
                 return Response(
-                    {"detail": f"Not enough tokens. This feature requires {actual_cost} tokens."},
+                    {
+                        "detail": "Not enough credits.",
+                        "remaining_tokens": subscription.remaining_tokens(),
+                        "next_reset": next_reset.isoformat(),
+                        "plan_type": subscription.plan.plan_type,
+                        "weekly_tokens_limit": subscription.plan.weekly_tokens_limit,
+                    },
                     status=status.HTTP_403_FORBIDDEN
                 )
 

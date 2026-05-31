@@ -19,6 +19,9 @@ def consume_tokens(subscription, amount=1, token_type="translation"):
     except ValueError:
         return False
 
+    subscription.consume(amount)
+    return True
+
 
 def consume_meeting_token(subscription, amount=50):
     """

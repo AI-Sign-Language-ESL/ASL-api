@@ -4,6 +4,7 @@ from django.conf import settings
 
 class Notification(models.Model):
     NOTIFICATION_TYPES = [
+        ("contribution_submitted", "Contribution Submitted"),
         ("contribution_approved", "Contribution Approved"),
         ("contribution_rejected", "Contribution Rejected"),
         ("tokens", "Tokens"),
