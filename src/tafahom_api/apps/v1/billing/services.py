@@ -28,12 +28,16 @@ def consume_meeting_token(subscription, amount=50):
     return consume_tokens(subscription, amount=amount, token_type="meeting")
 
 
-def consume_translation_token(subscription, amount=10):
+def consume_translation_token(subscription, amount=5):
     return consume_tokens(subscription, amount=amount, token_type="translation")
 
 
-def consume_generation_token(subscription, amount=10):
+def consume_generation_token(subscription, amount=7):
     return consume_tokens(subscription, amount=amount, token_type="generation")
+
+
+def consume_history_save_token(subscription, amount=2):
+    return consume_tokens(subscription, amount=amount, token_type="history_save")
 
 def reward_dataset_contribution(subscription, tokens=10):
     """

@@ -20,5 +20,6 @@ urlpatterns = [
     path("speech-to-text/", views.SpeechToTextView.as_view()),
     path("youtube-translate/", views.YouTubeTranslateView.as_view(), name="youtube-translate"),
     path("translate/", views.TranslationAPIView.as_view(), name="hybrid-translate"),
+    path("requests/<int:pk>/save/", views.SaveTranslationHistoryView.as_view(), name="save-history"),
 ]
 ####

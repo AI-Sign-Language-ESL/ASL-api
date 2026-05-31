@@ -14,11 +14,14 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "plan_type",
             "weekly_tokens_limit",
             "price",
+            "currency",
         )
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     plan = SubscriptionPlanSerializer(read_only=True)
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
+    plan_type = serializers.CharField(source="plan.plan_type", read_only=True)
     remaining_tokens = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     next_reset = serializers.SerializerMethodField()
@@ -28,6 +31,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         model = Subscription
         fields = (
             "plan",
+            "plan_name",
+            "plan_type",
             "status",
             "billing_period",
             "auto_renewal",

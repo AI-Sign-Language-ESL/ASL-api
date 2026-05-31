@@ -24,11 +24,15 @@ from .serializers import (
     TranslationRequestListSerializer,
     UnitySignResponseSerializer,
 )
-from .services.youtube_service import download_youtube_audio
+from .services.youtube_service import (
+    download_youtube_audio,
+    get_youtube_video_info,
+    calculate_youtube_token_cost,
+)
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
-from tafahom_api.apps.v1.billing.services import consume_translation_token, consume_generation_token
+from tafahom_api.apps.v1.billing.services import consume_translation_token, consume_generation_token, consume_history_save_token
 from tafahom_api.apps.v1.translation.services.sign_video_service import (
     generate_sign_video_from_gloss,
 )
@@ -55,7 +59,7 @@ class SpeechToTextView(APIView):
     parser_classes = [MultiPartParser]
     permission_classes = [IsAuthenticated]
 
-    @require_token_and_plan(token_cost=5, min_plan="basic", feature_name="Speech Mode", cost_type="speech_to_text")
+    @require_token_and_plan(token_cost=2, min_plan="basic", feature_name="Speech Mode", cost_type="speech_to_text")
     def post(self, request):
         subscription = request.subscription
         audio_file = request.FILES.get("file")
@@ -90,7 +94,7 @@ class SpeechToTextView(APIView):
         if text:
             # Only consume tokens if there's actually a result
             with transaction.atomic():
-                subscription.consume(5)
+                subscription.consume(2)
 
         return Response({
             "text": text,
@@ -171,7 +175,7 @@ class TranslateToSignView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TextToSignSerializer
 
-    @require_token_and_plan(token_cost=10, min_plan="free", feature_name="Sign Generation")
+    @require_token_and_plan(token_cost=7, min_plan="free", feature_name="Sign Generation")
     def post(self, request):
         subscription = request.subscription
         serializer = self.get_serializer(data=request.data)
@@ -194,7 +198,7 @@ class TranslateToSignView(generics.GenericAPIView):
 
         # 3️⃣ Save + Consume Tokens
         with transaction.atomic():
-            consume_generation_token(subscription, amount=10)
+            consume_generation_token(subscription)
 
             translation = TranslationRequest.objects.create(
                 user=request.user,
@@ -226,7 +230,6 @@ class YouTubeTranslateView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
-    @require_token_and_plan(token_cost=15, min_plan="basic", feature_name="YouTube Translation")
     def post(self, request):
         youtube_url = request.data.get("youtube_url")
         if not youtube_url:
@@ -235,7 +238,33 @@ class YouTubeTranslateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        subscription = request.subscription
+        # 0️⃣ Get video info for token cost calculation
+        try:
+            video_info = get_youtube_video_info(youtube_url)
+            token_cost = calculate_youtube_token_cost(video_info["duration"])
+        except ValueError as e:
+            # Fall back to default cost if info fetch fails
+            token_cost = 12
+
+        subscription = getattr(request.user, "subscription", None)
+        if not subscription:
+            return Response(
+                {"detail": _("No active subscription found.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        plan_rank = {"free": 0, "basic": 1, "go": 2, "enterprise": 3}
+        if plan_rank.get(subscription.plan.plan_type, 0) < plan_rank.get("basic", 0):
+            return Response(
+                {"detail": _("YouTube Translation is available on BASIC plans and above.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not subscription.can_consume(token_cost):
+            return Response(
+                {"detail": _(f"Not enough tokens. YouTube Translation requires {token_cost} tokens.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # 1️⃣ Download audio from YouTube
         try:
@@ -306,7 +335,7 @@ class YouTubeTranslateView(APIView):
 
         # 4️⃣ Save + Consume Tokens
         with transaction.atomic():
-            consume_generation_token(subscription, amount=15)
+            subscription.consume(token_cost)
 
             translation = TranslationRequest.objects.create(
                 user=request.user,
@@ -317,7 +346,7 @@ class YouTubeTranslateView(APIView):
                 output_text=transcribed_text,
                 output_video=video_url,
                 status="completed",
-                tokens_used=15,
+                tokens_used=token_cost,
             )
 
         return Response(
@@ -327,6 +356,7 @@ class YouTubeTranslateView(APIView):
                 "transcribed_text": transcribed_text,
                 "video": video_url,
                 "remaining_tokens": subscription.remaining_tokens(),
+                "tokens_used": token_cost,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -484,3 +514,66 @@ class TranslationAPIView(APIView):
                 {"success": False, "error": "Unable to translate text"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# =====================================================
+# 📜 SAVE TRANSLATION TO HISTORY
+# =====================================================
+
+
+class SaveTranslationHistoryView(APIView):
+    """
+    Save a translation request to user history (Basic+ plans, 2 tokens).
+    POST /api/v1/translation/requests/<id>/save/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        user = request.user
+        subscription = getattr(user, "subscription", None)
+        if not subscription:
+            return Response(
+                {"detail": _("No active subscription found.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        plan_rank = {"free": 0, "basic": 1, "go": 2, "enterprise": 3}
+        if plan_rank.get(subscription.plan.plan_type, 0) < plan_rank.get("basic", 0):
+            return Response(
+                {"detail": _("History save is available on BASIC plans and above.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not subscription.can_consume(2):
+            return Response(
+                {"detail": _("Not enough tokens. Saving to history requires 2 tokens.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            translation = TranslationRequest.objects.get(pk=pk, user=user)
+        except TranslationRequest.DoesNotExist:
+            return Response(
+                {"detail": _("Translation request not found.")},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if translation.saved:
+            return Response(
+                {"detail": _("Translation already saved to history.")},
+                status=status.HTTP_200_OK,
+            )
+
+        with transaction.atomic():
+            consume_history_save_token(subscription)
+            translation.saved = True
+            translation.save(update_fields=["saved"])
+
+        return Response(
+            {
+                "detail": _("Translation saved to history."),
+                "id": translation.id,
+                "remaining_tokens": subscription.remaining_tokens(),
+            },
+            status=status.HTTP_200_OK,
+        )

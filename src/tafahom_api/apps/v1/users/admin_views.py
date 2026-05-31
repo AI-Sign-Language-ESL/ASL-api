@@ -90,9 +90,9 @@ class AdminChangeUserPlanView(APIView):
         if not plan_type:
             return Response({"detail": "plan_type is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if user.role == "organization" and plan_type != "premium":
+        if user.role == "organization" and plan_type != "enterprise":
             return Response(
-                {"detail": "Organizations can only subscribe to the Premium plan."},
+                {"detail": "Organizations can only subscribe to the Enterprise plan."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

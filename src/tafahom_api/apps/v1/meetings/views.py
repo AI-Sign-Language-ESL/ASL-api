@@ -15,9 +15,17 @@ class CreateMeetingView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if getattr(request.user, "role", None) != "organization":
+        user = request.user
+        if getattr(user, "role", None) != "organization":
             return Response(
                 {"error": "Only organizations can create meetings"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        subscription = getattr(user, "subscription", None)
+        if not subscription or subscription.plan.plan_type != "enterprise":
+            return Response(
+                {"error": "Only Enterprise plan subscribers can create meetings"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

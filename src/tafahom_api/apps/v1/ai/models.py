@@ -1,5 +1,8 @@
+import uuid
 from django.conf import settings
 from django.db import models
+
+from tafahom_api.common.enums import CONVERSATION_STATUS, MESSAGE_ROLES
 
 
 class AIRequest(models.Model):
@@ -40,6 +43,7 @@ class AIRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = "ai_airequest"
         indexes = [
             models.Index(fields=["user"]),
             models.Index(fields=["service"]),
@@ -48,3 +52,57 @@ class AIRequest(models.Model):
 
     def __str__(self):
         return f"{self.service} | {self.status} | {self.latency_ms}ms"
+
+
+class Conversation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="fehm_conversations",
+    )
+    title = models.CharField(max_length=255, blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=CONVERSATION_STATUS,
+        default="active",
+    )
+    meta_data = models.JSONField(blank=True, default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fehm_conversations"
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["user", "-updated_at"]),
+            models.Index(fields=["user", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.title or 'Untitled'} ({self.user.username})"
+
+
+class Message(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    role = models.CharField(max_length=20, choices=MESSAGE_ROLES)
+    content = models.TextField()
+    tokens_used = models.PositiveIntegerField(default=0)
+    model_used = models.CharField(max_length=50, blank=True, default="")
+    extra_data = models.JSONField(blank=True, default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "fehm_messages"
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["conversation", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:50]}..."

@@ -24,6 +24,7 @@ class SubscriptionPlan(models.Model):
 
     weekly_tokens_limit = models.PositiveIntegerField(default=50)
     price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    currency = models.CharField(max_length=3, choices=[("EGP", "EGP"), ("USD", "USD")], default="EGP")
     is_active = models.BooleanField(default=True)
 
     class Meta:

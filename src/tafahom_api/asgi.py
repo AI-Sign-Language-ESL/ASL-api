@@ -19,9 +19,10 @@ from tafahom_api.apps.v1.authentication.middleware import JWTAuthMiddlewareStack
 # 🔹 Import ALL websocket routes (important)
 from tafahom_api.apps.v1.translation.routing import websocket_urlpatterns as translation_ws
 from tafahom_api.apps.v1.meetings.routings import websocket_urlpatterns as meetings_ws
+from tafahom_api.apps.v1.ai.routing import websocket_urlpatterns as ai_ws
 
 # 🔹 Combine all websocket routes
-websocket_urlpatterns = translation_ws + meetings_ws
+websocket_urlpatterns = translation_ws + meetings_ws + ai_ws
 
 
 # ✅ FINAL APPLICATION

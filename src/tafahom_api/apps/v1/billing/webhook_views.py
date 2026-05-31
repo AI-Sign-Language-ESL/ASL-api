@@ -20,7 +20,7 @@ class PaymentWebhookView(APIView):
         {
             "transaction_id": "visa_123456",
             "user_id": 1,
-            "plan_type": "premium",
+            "plan_type": "enterprise",
             "amount": 29.99,
             "status": "completed",  # completed, failed, pending
             "payment_method": "visa",

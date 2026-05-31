@@ -34,6 +34,8 @@ from .env import (
     EMAIL_HOST_PASSWORD,
     EMAIL_USE_TLS,
     DEFAULT_FROM_EMAIL as ENV_DEFAULT_FROM_EMAIL,
+    FEHM_MAX_CONVERSATIONS_PER_USER,
+    FEHM_MESSAGE_RATE_LIMIT,
 )
 
 # =============================================================================
@@ -262,6 +264,8 @@ REST_FRAMEWORK = {
         "login": "5/minute",
         "password_reset": "3/minute",
         "verify_email": "10/minute",
+        # Fehm chatbot
+        "chat_message": FEHM_MESSAGE_RATE_LIMIT,
     },
     "EXCEPTION_HANDLER": "tafahom_api.common.exception_handler.custom_exception_handler",
 }
@@ -330,3 +334,9 @@ LOGGING = {
         },
     },
 }
+
+# =============================================================================
+# FEHM (CHATBOT) CONFIG
+# =============================================================================
+FEHM_MAX_CONVERSATIONS_PER_USER = FEHM_MAX_CONVERSATIONS_PER_USER
+FEHM_MESSAGE_RATE_LIMIT = FEHM_MESSAGE_RATE_LIMIT
