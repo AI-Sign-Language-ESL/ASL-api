@@ -104,7 +104,6 @@ def download_youtube_audio(youtube_url: str, output_dir: str = None) -> str:
     cmd = [
         'yt-dlp',
         '--no-playlist',              
-        '-f', 'bestaudio/best',
         '--extract-audio',
         '--audio-format', 'mp3',      
         '--audio-quality', '5',
