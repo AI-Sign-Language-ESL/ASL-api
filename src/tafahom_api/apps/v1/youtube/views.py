@@ -18,6 +18,12 @@ from tafahom_api.apps.v1.translation.services.youtube_service import (
     YouTubeInvalidURLError,
     YouTubeProcessingError
 )
+from tafahom_api.apps.v1.youtube.services.extraction import extract_transcript
+from tafahom_api.apps.v1.translation.services.pipeline_service import normalize_arabic
+from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
+from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
+
+from asgiref.sync import async_to_sync
 
 import logging
 logger = logging.getLogger(__name__)
@@ -125,3 +131,78 @@ class YouTubeTranslationDetailView(generics.RetrieveDestroyAPIView):
     
     def get_queryset(self):
         return YouTubeTranslation.objects.filter(user=self.request.user)
+
+
+class YouTubeSignTranslateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=0, min_plan="basic", feature_name="YouTube Sign Translate")
+    def post(self, request):
+        url = request.data.get("url")
+        if not url:
+            return Response({
+                "success": False,
+                "requires_upload": True,
+                "error": "No YouTube URL provided."
+            })
+
+        subscription = request.subscription
+        if not subscription.can_consume(10):
+            return Response({
+                "success": False,
+                "requires_upload": True,
+                "error": "Not enough tokens. Please top up your account."
+            })
+
+        # Step 1: Extract transcript
+        transcript = None
+        source = None
+        try:
+            transcript, source = extract_transcript(url)
+        except Exception as e:
+            logger.warning(f"Transcript extraction failed: {e}")
+
+        if not transcript:
+            return Response({
+                "success": False,
+                "requires_upload": True,
+                "error": "Unable to process this YouTube video. Please upload the video directly."
+            })
+
+        # Step 2: NLP → Gloss
+        gloss_tokens = []
+        try:
+            ai_result = async_to_sync(
+                TranslationPipelineService._text_to_gloss_client.text_to_gloss
+            )(transcript)
+            raw = (
+                ai_result.get("gloss_translation")
+                or ai_result.get("gloss")
+                or ai_result.get("text")
+                or transcript
+            )
+            normalized = normalize_arabic(str(raw))
+            gloss_tokens = [t for t in normalized.split() if t]
+        except Exception as e:
+            logger.warning(f"NLP failed for sign translate: {e}, using raw transcript")
+            gloss_tokens = [t for t in normalize_arabic(transcript).split() if t]
+
+        # Step 3: Gloss → Animations
+        animations_result = translate_to_animation_names(" ".join(gloss_tokens))
+        animations = animations_result.get("animations", [])
+
+        if not animations:
+            animations_result = translate_to_animation_names(transcript)
+            animations = animations_result.get("animations", [])
+
+        # Step 4: Consume tokens
+        with transaction.atomic():
+            subscription.consume(10)
+
+        return Response({
+            "success": True,
+            "source": source or "transcript",
+            "transcript": transcript,
+            "gloss": gloss_tokens,
+            "animations": animations,
+        })
