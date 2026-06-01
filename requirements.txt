@@ -151,6 +151,6 @@ ujson==5.11.0
 uritemplate==4.2.0
 urllib3==2.6.3
 zope.interface==8.2
-youtube-transcript-api==0.6.3
+youtube-transcript-api==1.2.4
 curl_cffi
 websockets

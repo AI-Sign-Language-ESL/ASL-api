@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from .models import YouTubeTranslation
-from .serializers import YouTubeTranslationSerializer, YouTubeTranslationCreateSerializer
+from .serializers import YouTubeTranslationSerializer, YouTubeTranslationCreateSerializer, VideoUploadSerializer
 from .services.translation import start_youtube_translation
 from tafahom_api.apps.v1.notifications.models import Notification
 from tafahom_api.common.decorators import require_token_and_plan
@@ -22,6 +22,10 @@ from tafahom_api.apps.v1.youtube.services.extraction import extract_transcript
 from tafahom_api.apps.v1.translation.services.pipeline_service import normalize_arabic
 from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
 from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
+
+from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
+from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from asgiref.sync import async_to_sync
 
@@ -206,3 +210,228 @@ class YouTubeSignTranslateView(APIView):
             "gloss": gloss_tokens,
             "animations": animations,
         })
+
+
+class TranscriptCheckView(APIView):
+    """
+    Quick YouTube access probe.
+    Returns 403 immediately if YouTube is blocked.
+    React uses this to decide whether to show upload fallback.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=0, min_plan="basic", feature_name="YouTube Translation")
+    def post(self, request):
+        url = request.data.get("url") or request.data.get("video_id")
+        if not url:
+            return Response({"available": False, "error": "No URL provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        video_id = _extract_video_id(url) if not _is_video_id(url) else url
+        if not video_id:
+            return Response({"available": False, "error": "Invalid video ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Quick probe: try youtube-transcript-api with short timeout
+        try:
+            import httpx
+            resp = httpx.get(
+                f"https://www.youtube.com/watch?v={video_id}",
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+                timeout=5,
+                follow_redirects=True,
+            )
+            if resp.status_code != 200 or len(resp.content) < 1000:
+                logger.warning(f"YouTube probe returned {resp.status_code}, content length: {len(resp.content)}")
+                return Response(
+                    {"available": False, "blocked": True, "error": "YouTube access blocked"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Check if response contains caption data
+            has_captions = 'captionTracks' in resp.text or 'playerCaptionsTracklistRenderer' in resp.text
+            if not has_captions:
+                return Response(
+                    {"available": True, "has_captions": False, "message": "Video has no caption tracks"},
+                    status=status.HTTP_200_OK,
+                )
+
+            # Try to get the actual transcript
+            try:
+                transcript, source = extract_transcript(f"https://youtube.com/watch?v={video_id}")
+                if transcript and len(transcript) >= 10:
+                    return Response({
+                        "available": True,
+                        "has_captions": True,
+                        "transcript": transcript,
+                    })
+                return Response({
+                    "available": True,
+                    "has_captions": True,
+                    "transcript_empty": True,
+                    "message": "Transcript was empty",
+                })
+            except Exception as e:
+                logger.warning(f"Transcript fetch failed during probe: {e}")
+                return Response({"available": True, "has_captions": True, "fetch_failed": True})
+
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+            logger.warning(f"YouTube probe connection error: {e}")
+            return Response(
+                {"available": False, "blocked": True, "error": "YouTube access blocked"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except Exception as e:
+            logger.warning(f"YouTube probe failed: {e}")
+            return Response(
+                {"available": False, "blocked": True, "error": "YouTube access blocked"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+
+class ProcessTranscriptView(APIView):
+    """
+    Accepts pre-extracted transcript from the browser extension.
+    Does NOT attempt any YouTube fetch.
+    Runs Arabic NLP pipeline directly.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=0, min_plan="basic", feature_name="YouTube Translation")
+    def post(self, request):
+        transcript = request.data.get("transcript", "").strip()
+        video_id = request.data.get("video_id", "")
+        title = request.data.get("title", "")
+
+        if not transcript or len(transcript) < 5:
+            return Response(
+                {"success": False, "error": "Transcript is too short or empty"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        subscription = request.subscription
+        if not subscription.can_consume(10):
+            return Response(
+                {"success": False, "requires_upload": True, "error": "Not enough tokens."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Step 1: NLP → Gloss
+        gloss_tokens = []
+        try:
+            ai_result = async_to_sync(
+                TranslationPipelineService._text_to_gloss_client.text_to_gloss
+            )(transcript)
+            raw = (
+                ai_result.get("gloss_translation")
+                or ai_result.get("gloss")
+                or ai_result.get("text")
+                or transcript
+            )
+            normalized = normalize_arabic(str(raw))
+            gloss_tokens = [t for t in normalized.split() if t]
+        except Exception as e:
+            logger.warning(f"NLP failed for process-transcript: {e}")
+            gloss_tokens = [t for t in normalize_arabic(transcript).split() if t]
+
+        # Step 2: Gloss → Animations
+        animations_result = translate_to_animation_names(" ".join(gloss_tokens))
+        animations = animations_result.get("animations", [])
+
+        if not animations:
+            animations_result = translate_to_animation_names(transcript)
+            animations = animations_result.get("animations", [])
+
+        # Step 3: Consume tokens
+        with transaction.atomic():
+            subscription.consume(10)
+
+        # Save to DB for history
+        try:
+            from .models import YouTubeTranslation
+            YouTubeTranslation.objects.create(
+                user=request.user,
+                youtube_url=f"https://youtube.com/watch?v={video_id}",
+                transcript=transcript,
+                source="transcript",
+                status="completed",
+                tokens_used=10,
+                animation_data=animations,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to save translation record: {e}")
+
+        return Response({
+            "success": True,
+            "source": "transcript",
+            "transcript": transcript,
+            "gloss": gloss_tokens,
+            "animations": animations,
+        })
+
+
+def _extract_video_id(url):
+    import re
+    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:[?&#]|$)", url)
+    return match.group(1) if match else None
+
+
+def _is_video_id(value):
+    import re
+    return bool(re.match(r"^[0-9A-Za-z_-]{11}$", value))
+
+
+class YouTubeUploadVideoView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        serializer = VideoUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        video_file = serializer.validated_data["video_file"]
+
+        try:
+            stt_client = SpeechToTextClient()
+            stt_resp = async_to_sync(stt_client.speech_to_text)(video_file)
+            transcript = (stt_resp.get("text") or "").strip()
+
+            if not transcript:
+                return Response(
+                    {"success": False, "error": "Speech recognition returned empty transcript."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            gloss_client = TextToGlossClient()
+            ai_result = async_to_sync(gloss_client.text_to_gloss)(transcript)
+            raw = (
+                ai_result.get("gloss_translation")
+                or ai_result.get("gloss")
+                or ai_result.get("text")
+                or transcript
+            )
+            normalized = normalize_arabic(str(raw))
+            gloss_tokens = [t for t in normalized.split() if t]
+
+            animations_result = translate_to_animation_names(" ".join(gloss_tokens))
+            animations = animations_result.get("animations", [])
+
+            if not animations:
+                animations_result = translate_to_animation_names(transcript)
+                animations = animations_result.get("animations", [])
+
+            return Response({
+                "success": True,
+                "source": "upload",
+                "transcript": transcript,
+                "gloss": gloss_tokens,
+                "animations": animations,
+            })
+
+        except Exception as e:
+            logger.exception(f"Upload video processing failed: {e}")
+            return Response(
+                {"success": False, "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

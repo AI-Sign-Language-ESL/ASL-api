@@ -8,3 +8,6 @@ class YouTubeTranslationSerializer(serializers.ModelSerializer):
 
 class YouTubeTranslationCreateSerializer(serializers.Serializer):
     youtube_url = serializers.URLField()
+
+class VideoUploadSerializer(serializers.Serializer):
+    video_file = serializers.FileField()
