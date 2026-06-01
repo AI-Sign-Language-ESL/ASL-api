@@ -6,7 +6,13 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from .models import YouTubeTranslation
-from .serializers import YouTubeTranslationSerializer, YouTubeTranslationCreateSerializer, VideoUploadSerializer
+from .serializers import (
+    YouTubeTranslationSerializer,
+    YouTubeTranslationCreateSerializer,
+    VideoUploadSerializer,
+    BrowserTranscriptSerializer,
+)
+from .services.browser_transcript import process_browser_transcript
 from .services.translation import start_youtube_translation
 from tafahom_api.apps.v1.notifications.models import Notification
 from tafahom_api.common.decorators import require_token_and_plan
@@ -158,13 +164,17 @@ class YouTubeSignTranslateView(APIView):
                 "error": "Not enough tokens. Please top up your account."
             })
 
-        # Step 1: Extract transcript
-        transcript = None
-        source = None
-        try:
-            transcript, source = extract_transcript(url)
-        except Exception as e:
-            logger.warning(f"Transcript extraction failed: {e}")
+        # Step 1: Use pre-supplied transcript if available (from browser extension)
+        transcript = request.data.get("transcript", "").strip()
+        source = "browser"
+
+        if not transcript or len(transcript) <= 10:
+            transcript = None
+            source = None
+            try:
+                transcript, source = extract_transcript(url)
+            except Exception as e:
+                logger.warning(f"Transcript extraction failed: {e}")
 
         if not transcript:
             return Response({
@@ -294,7 +304,7 @@ class ProcessTranscriptView(APIView):
     """
     Accepts pre-extracted transcript from the browser extension.
     Does NOT attempt any YouTube fetch.
-    Runs Arabic NLP pipeline directly.
+    Creates a background job and returns immediately.
     """
     permission_classes = [IsAuthenticated]
 
@@ -317,58 +327,67 @@ class ProcessTranscriptView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Step 1: NLP → Gloss
-        gloss_tokens = []
-        try:
-            ai_result = async_to_sync(
-                TranslationPipelineService._text_to_gloss_client.text_to_gloss
-            )(transcript)
-            raw = (
-                ai_result.get("gloss_translation")
-                or ai_result.get("gloss")
-                or ai_result.get("text")
-                or transcript
-            )
-            normalized = normalize_arabic(str(raw))
-            gloss_tokens = [t for t in normalized.split() if t]
-        except Exception as e:
-            logger.warning(f"NLP failed for process-transcript: {e}")
-            gloss_tokens = [t for t in normalize_arabic(transcript).split() if t]
-
-        # Step 2: Gloss → Animations
-        animations_result = translate_to_animation_names(" ".join(gloss_tokens))
-        animations = animations_result.get("animations", [])
-
-        if not animations:
-            animations_result = translate_to_animation_names(transcript)
-            animations = animations_result.get("animations", [])
-
-        # Step 3: Consume tokens
+        # Create a DB record and dispatch background processing
         with transaction.atomic():
-            subscription.consume(10)
-
-        # Save to DB for history
-        try:
-            from .models import YouTubeTranslation
-            YouTubeTranslation.objects.create(
+            translation = YouTubeTranslation.objects.create(
                 user=request.user,
-                youtube_url=f"https://youtube.com/watch?v={video_id}",
+                youtube_url=f"https://youtube.com/watch?v={video_id}" if video_id else "",
                 transcript=transcript,
                 source="transcript",
-                status="completed",
+                status="processing",
                 tokens_used=10,
-                animation_data=animations,
             )
-        except Exception as e:
-            logger.warning(f"Failed to save translation record: {e}")
+
+        # Dispatch background NLP + animation task
+        start_youtube_translation(translation.id)
 
         return Response({
-            "success": True,
-            "source": "transcript",
+            "job_id": translation.id,
+            "status": "queued",
             "transcript": transcript,
-            "gloss": gloss_tokens,
-            "animations": animations,
-        })
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class BrowserTranscriptView(APIView):
+    """
+    Accepts transcript text extracted in the user's browser.
+    Runs NLP → Gloss → Sign Translation synchronously and returns the full result.
+    No YouTube fetch is attempted from the server.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=0, min_plan="basic", feature_name="YouTube Translation")
+    def post(self, request):
+        serializer = BrowserTranscriptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        transcript = serializer.validated_data["transcript"]
+        video_id = serializer.validated_data.get("video_id", "")
+        title = serializer.validated_data.get("title", "")
+        language = serializer.validated_data.get("language", "ar")
+
+        subscription = request.subscription
+        if not subscription or not subscription.can_consume(10):
+            return Response(
+                {"success": False, "error": "Not enough tokens. YouTube translation requires 10 tokens."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            result = process_browser_transcript(
+                transcript=transcript,
+                user=request.user,
+                video_id=video_id,
+                title=title,
+                language=language,
+            )
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception(f"Browser transcript processing failed: {e}")
+            return Response(
+                {"success": False, "error": "Translation processing failed. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 def _extract_video_id(url):
@@ -390,7 +409,12 @@ class YouTubeUploadVideoView(APIView):
         serializer = VideoUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        video_file = serializer.validated_data["video_file"]
+        video_file = serializer.validated_data.get("video") or serializer.validated_data.get("video_file")
+        if not video_file:
+            return Response(
+                {"success": False, "error": "No video file provided. Use field 'video' or 'video_file'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             stt_client = SpeechToTextClient()
@@ -403,30 +427,10 @@ class YouTubeUploadVideoView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            gloss_client = TextToGlossClient()
-            ai_result = async_to_sync(gloss_client.text_to_gloss)(transcript)
-            raw = (
-                ai_result.get("gloss_translation")
-                or ai_result.get("gloss")
-                or ai_result.get("text")
-                or transcript
-            )
-            normalized = normalize_arabic(str(raw))
-            gloss_tokens = [t for t in normalized.split() if t]
-
-            animations_result = translate_to_animation_names(" ".join(gloss_tokens))
-            animations = animations_result.get("animations", [])
-
-            if not animations:
-                animations_result = translate_to_animation_names(transcript)
-                animations = animations_result.get("animations", [])
-
             return Response({
                 "success": True,
                 "source": "upload",
                 "transcript": transcript,
-                "gloss": gloss_tokens,
-                "animations": animations,
             })
 
         except Exception as e:

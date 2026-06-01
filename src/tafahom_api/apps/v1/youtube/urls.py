@@ -9,5 +9,6 @@ urlpatterns = [
     path("history/", views.YouTubeTranslationHistoryView.as_view(), name="history"),
     path("transcript/", views.TranscriptCheckView.as_view(), name="transcript-check"),
     path("process-transcript/", views.ProcessTranscriptView.as_view(), name="process-transcript"),
+    path("browser-transcript/", views.BrowserTranscriptView.as_view(), name="browser-transcript"),
     path("<int:pk>/", views.YouTubeTranslationDetailView.as_view(), name="detail"),
 ]
