@@ -23,9 +23,20 @@ def process_youtube_translation_task(translation_id):
     user = translation.user
 
     try:
-        # Step 1: Extract Transcript
-        logger.info(f"Extracting transcript for {translation.youtube_url}")
-        transcript, source = extract_transcript(translation.youtube_url)
+        # Step 1: Use pre-supplied transcript if available (extension flow),
+        #          otherwise fall back to server-side extraction (legacy flow).
+        if translation.transcript and len(translation.transcript.strip()) > 5 and translation.source in ("transcript_panel", "live_captions", "transcript"):
+            transcript = translation.transcript
+            source = translation.source or "transcript_panel"
+            logger.info("=== Using transcript provided by browser extension ===")
+            logger.info("Transcript length: %s chars", len(transcript))
+            logger.info("Source: %s", source)
+            logger.info("Segments: %s", len(translation.segments) if translation.segments else 0)
+            logger.info("Language: %s", translation.language)
+            logger.info("Skipping YouTube extraction entirely")
+        else:
+            logger.info(f"Extracting transcript for {translation.youtube_url}")
+            transcript, source = extract_transcript(translation.youtube_url)
         
         if not transcript:
             raise ValueError("No speech detected in the video")

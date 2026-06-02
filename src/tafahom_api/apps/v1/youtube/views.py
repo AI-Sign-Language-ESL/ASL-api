@@ -3,7 +3,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
+import asyncio
 
 from .models import YouTubeTranslation
 from .serializers import (
@@ -30,6 +32,7 @@ from tafahom_api.apps.v1.youtube.services.extraction import extract_transcript
 from tafahom_api.apps.v1.translation.services.pipeline_service import normalize_arabic
 from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
 from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
+from asgiref.sync import async_to_sync
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
 from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
@@ -305,16 +308,28 @@ class TranscriptCheckView(APIView):
 class ProcessTranscriptView(APIView):
     """
     Accepts pre-extracted transcript from the browser extension.
-    Does NOT attempt any YouTube fetch.
-    Creates a background job and returns immediately.
+    Runs NLP → Gloss → Animation pipeline synchronously (same as unity-sign).
+    Does NOT call extract_transcript(), YouTubeTranscriptApi, or yt-dlp.
     """
     permission_classes = [IsAuthenticated]
 
-    @require_token_and_plan(token_cost=0, min_plan="basic", feature_name="YouTube Translation")
+    @require_token_and_plan(token_cost=10, min_plan="basic", feature_name="YouTube Translation")
     def post(self, request):
         transcript = request.data.get("transcript", "").strip()
         video_id = request.data.get("video_id", "")
         title = request.data.get("title", "")
+        source = request.data.get("source", "transcript_panel")
+        language = request.data.get("language", "")
+        segments = request.data.get("segments", [])
+
+        logger.info("=" * 50)
+        logger.info("PROCESS TRANSCRIPT (YouTube Extension)")
+        logger.info("=" * 50)
+        logger.info("Transcript length: %s chars", len(transcript))
+        logger.info("Source          : %s", source)
+        logger.info("Segments        : %s", len(segments))
+        logger.info("Video ID        : %s", video_id)
+        logger.info("Language        : %s", language)
 
         if not transcript or len(transcript) < 5:
             return Response(
@@ -329,25 +344,87 @@ class ProcessTranscriptView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Create a DB record and dispatch background processing
+        # 1️⃣ Try NLP text-to-gloss first (fail fast with timeout)
+        try:
+            logger.info("[ProcessTranscript] Calling NLP text-to-gloss ...")
+            ai_result = asyncio.run(
+                asyncio.wait_for(
+                    TranslationPipelineService._text_to_gloss_client.text_to_gloss(transcript),
+                    timeout=min(getattr(settings, 'AI_TIMEOUT', 30), 5),
+                )
+            )
+            logger.info("AI RAW RESULT: %s", ai_result)
+
+            raw = (
+                ai_result.get("gloss_translation")
+                or ai_result.get("gloss")
+                or ai_result.get("text")
+                or transcript
+            )
+            logger.info("MODEL OUTPUT : %r", raw)
+
+            result = translate_to_animation_names(str(raw))
+            result["source"] = "nlp"
+            logger.info("ANIMATIONS   : %s", result["animations"])
+            logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
+
+        except asyncio.TimeoutError:
+            logger.warning("[ProcessTranscript] NLP timed out, falling back ...")
+            result = None
+        except Exception as e:
+            logger.warning("[ProcessTranscript] NLP failed: %s: %s", type(e).__name__, e)
+            result = None
+
+        # 2️⃣ Fallback: Unity SignMatcher
+        if result is None:
+            logger.info("[ProcessTranscript] Falling back to Unity SignMatcher")
+            try:
+                from tafahom_api.apps.v1.translation.services.unity_sign_matcher_client import UnitySignMatcherClient
+                client = UnitySignMatcherClient()
+                animations = asyncio.run(client.match(transcript))
+                logger.info("SIGN MATCHER : %s", animations)
+                if animations:
+                    result = {"animations": animations, "unknown_words": [], "source": "unity_matcher"}
+                else:
+                    result = None
+            except Exception as e:
+                logger.warning("[ProcessTranscript] SignMatcher failed: %s", e)
+                result = None
+
+        # 3️⃣ Last resort: direct ANIMATION_MAP lookup
+        if result is None:
+            logger.info("[ProcessTranscript] Falling back to direct ANIMATION_MAP lookup")
+            result = translate_to_animation_names(transcript)
+            result["source"] = "sign_map"
+            logger.info("ANIMATIONS   : %s", result["animations"])
+            logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
+
+        # Save record and consume tokens
         with transaction.atomic():
+            subscription.consume(10)
             translation = YouTubeTranslation.objects.create(
                 user=request.user,
                 youtube_url=f"https://youtube.com/watch?v={video_id}" if video_id else "",
+                video_id=video_id,
+                title=title,
                 transcript=transcript,
-                source="transcript",
-                status="processing",
+                source=source,
+                segments=segments,
+                language=language,
+                status="completed",
                 tokens_used=10,
+                animation_data=result.get("animations", []),
             )
 
-        # Dispatch background NLP + animation task
-        start_youtube_translation(translation.id)
+        result["translation_id"] = translation.id
+        result["transcript"] = transcript
+        result["tokens_used"] = 10
+        result["remaining_tokens"] = subscription.remaining_tokens()
 
-        return Response({
-            "job_id": translation.id,
-            "status": "queued",
-            "transcript": transcript,
-        }, status=status.HTTP_202_ACCEPTED)
+        logger.info("FINAL RESP   : %s", result)
+        logger.info("=" * 50)
+        return Response(result)
+
 
 
 class BrowserTranscriptView(APIView):
