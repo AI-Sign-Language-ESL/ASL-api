@@ -92,12 +92,9 @@ NLP_MODEL_URL = os.getenv("NLP_MODEL_URL")
 
 if ENVIRONMENT == "PROD":
     for name, value in {
-        "AI_STT_BASE_URL": AI_STT_BASE_URL,
-        "AI_TTS_BASE_URL": AI_TTS_BASE_URL,
         "AI_GLOSS_TO_TEXT_BASE_URL": AI_GLOSS_TO_TEXT_BASE_URL,
         "AI_TEXT_TO_GLOSS_BASE_URL": AI_TEXT_TO_GLOSS_BASE_URL,
         "AI_CV_BASE_URL": AI_CV_BASE_URL,
-        "CV_MODEL_WS_URL": CV_MODEL_WS_URL,
         "NLP_MODEL_URL": NLP_MODEL_URL,
     }.items():
         if not value:
