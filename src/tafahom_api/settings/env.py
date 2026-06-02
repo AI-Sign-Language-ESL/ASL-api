@@ -85,10 +85,7 @@ AI_CV_BASE_URL = os.getenv("AI_CV_BASE_URL")
 # =============================================================================
 CV_MODEL_WS_URL = os.getenv("CV_MODEL_WS_URL")
 
-# =============================================================================
-# NLP MODEL URL (for gloss-to-text translation)
-# =============================================================================
-NLP_MODEL_URL = os.getenv("NLP_MODEL_URL")
+
 
 if ENVIRONMENT == "PROD":
     for name, value in {

@@ -538,9 +538,9 @@ class TestGlossView(APIView):
         logger.info("=" * 60)
         logger.info("Input gloss: %r", gloss)
 
-        nlp_url = getattr(settings, "NLP_MODEL_URL", "")
+        nlp_url = getattr(settings, "AI_GLOSS_TO_TEXT_BASE_URL", "")
         if not nlp_url:
-            logger.error("NLP_MODEL_URL is not configured")
+            logger.error("AI_GLOSS_TO_TEXT_BASE_URL is not configured")
             return Response(
                 {"error": "NLP service URL is not configured"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,

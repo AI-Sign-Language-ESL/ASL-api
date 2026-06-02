@@ -21,7 +21,7 @@ class NLPModelClient(BaseAIClient):
     Response: {"text": "مرحباً كيف حالك"}
     """
 
-    base_url = getattr(settings, "NLP_MODEL_URL", "")
+    base_url = getattr(settings, "AI_GLOSS_TO_TEXT_BASE_URL", "")
 
     def __init__(self, timeout: Optional[int] = None):
         self.request_timeout = timeout or getattr(
