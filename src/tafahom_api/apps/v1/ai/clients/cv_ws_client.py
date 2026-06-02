@@ -1,10 +1,10 @@
+import abc
 import asyncio
 import json
 import logging
 import time
 from typing import Optional
 
-import httpx
 from django.conf import settings
 
 from tafahom_api.apps.v1.translation.services.dtos import CVResponse
@@ -12,12 +12,37 @@ from tafahom_api.apps.v1.translation.services.dtos import CVResponse
 logger = logging.getLogger(__name__)
 
 
-class CVWebSocketClient:
+class CVModelClient(abc.ABC):
     """
-    WebSocket-based client for Computer Vision model.
+    Abstract Interface for the Computer Vision model client.
+    Ensures the future CV API is pluggable without changing frontend code.
+    """
 
-    Sends buffered video chunks via WebSocket and receives gloss text.
-    Falls back to the HTTP-based ComputerVisionClient if WS is unavailable.
+    @abc.abstractmethod
+    async def connect(self):
+        """Establish connection to the CV model."""
+        pass
+
+    @abc.abstractmethod
+    async def send_video_chunk(self, video_chunk: bytes):
+        """Send a video frame chunk to the CV model."""
+        pass
+
+    @abc.abstractmethod
+    async def receive_gloss(self) -> CVResponse:
+        """Receive the next gloss from the CV model."""
+        pass
+
+    @abc.abstractmethod
+    async def disconnect(self):
+        """Close the connection to the CV model."""
+        pass
+
+
+class CVWebSocketClient(CVModelClient):
+    """
+    Stateful WebSocket-based client for Computer Vision model.
+    Maintains a persistent connection for the duration of the session.
     """
 
     def __init__(
@@ -27,87 +52,100 @@ class CVWebSocketClient:
     ):
         self.ws_url = ws_url or getattr(settings, "CV_MODEL_WS_URL", None)
         self.timeout = timeout or getattr(settings, "CV_WS_TIMEOUT", 30)
+        self.ws = None
 
-    async def send_video_chunk(self, video_chunk: bytes) -> CVResponse:
-        """
-        Send a video frame chunk to the CV model via WebSocket and return gloss.
-
-        Args:
-            video_chunk: Binary video frame data (JPEG or raw bytes).
-
-        Returns:
-            CVResponse with gloss text.
-
-        Raises:
-            ConnectionError: If WebSocket connection fails.
-            TimeoutError: If no response within timeout.
-            ValueError: If response is malformed.
-        """
+    async def connect(self):
         if not self.ws_url:
-            return await self._http_fallback(video_chunk)
+            raise ValueError("CV_MODEL_WS_URL is not set.")
+        
+        if self.ws:
+            return
 
-        try:
-            return await self._ws_send(video_chunk)
-        except (ConnectionError, asyncio.TimeoutError, ValueError) as exc:
-            logger.warning(
-                "CV WebSocket failed (%s), falling back to HTTP", str(exc)
-            )
-            return await self._http_fallback(video_chunk)
-
-    async def _ws_send(self, video_chunk: bytes) -> CVResponse:
         import websockets
-
-        start = time.perf_counter()
         try:
-            async with websockets.connect(
+            self.ws = await websockets.connect(
                 self.ws_url,
                 max_size=10 * 1024 * 1024,
                 open_timeout=10,
-            ) as ws:
-                await ws.send(video_chunk)
-                response_raw = await asyncio.wait_for(
-                    ws.recv(), timeout=self.timeout
-                )
+            )
+            logger.info("Connected to CV model WebSocket.")
+        except Exception as e:
+            logger.error(f"Failed to connect to CV model WebSocket: {e}")
+            raise ConnectionError(f"Could not connect to CV WebSocket: {e}") from e
 
-                if isinstance(response_raw, bytes):
-                    data = json.loads(response_raw.decode("utf-8"))
-                else:
-                    data = json.loads(response_raw)
+    async def send_video_chunk(self, video_chunk: bytes):
+        if not self.ws:
+            await self.connect()
+        try:
+            await self.ws.send(video_chunk)
+        except Exception as e:
+            logger.error(f"Failed to send video chunk to CV: {e}")
+            self.ws = None
+            raise
 
-                gloss = data.get("gloss", "")
-                if not gloss:
-                    raise ValueError("CV model returned empty gloss")
+    async def receive_gloss(self) -> CVResponse:
+        if not self.ws:
+            raise ConnectionError("CV WebSocket is not connected.")
+        
+        start = time.perf_counter()
+        try:
+            response_raw = await asyncio.wait_for(
+                self.ws.recv(), timeout=self.timeout
+            )
 
-                latency = (time.perf_counter() - start) * 1000
-                logger.info(
-                    "cv_ws_success",
-                    extra={
-                        "gloss": gloss,
-                        "latency_ms": round(latency, 2),
-                    },
-                )
+            if isinstance(response_raw, bytes):
+                data = json.loads(response_raw.decode("utf-8"))
+            else:
+                data = json.loads(response_raw)
 
-                return CVResponse(gloss=gloss, raw=data)
+            gloss = data.get("gloss", "")
+            if not gloss:
+                raise ValueError("CV model returned empty gloss")
 
-        except websockets.exceptions.ConnectionClosed as exc:
-            raise ConnectionError(f"WebSocket closed unexpectedly: {exc}") from exc
+            latency = (time.perf_counter() - start) * 1000
+            logger.info(
+                "cv_ws_success",
+                extra={
+                    "gloss": gloss,
+                    "latency_ms": round(latency, 2),
+                },
+            )
+
+            return CVResponse(gloss=gloss, raw=data)
+
         except asyncio.TimeoutError:
             raise TimeoutError("CV model did not respond in time") from None
-
-    async def _http_fallback(self, video_chunk: bytes) -> CVResponse:
-        from tafahom_api.apps.v1.ai.clients.computer_vision_client import (
-            ComputerVisionClient,
-        )
-
-        http_client = ComputerVisionClient()
-        frames = [video_chunk.hex()]
-
-        try:
-            result = await http_client.sign_to_gloss(frames)
-            gloss = result.get("gloss", "")
-            if not gloss:
-                raise ValueError("CV HTTP fallback returned empty gloss")
-            return CVResponse(gloss=gloss, raw=result)
-        except Exception as exc:
-            logger.error("CV HTTP fallback also failed: %s", str(exc))
+        except Exception as e:
+            logger.error(f"Error receiving gloss from CV: {e}")
+            self.ws = None
             raise
+
+    async def disconnect(self):
+        if self.ws:
+            await self.ws.close()
+            self.ws = None
+            logger.info("Disconnected from CV model WebSocket.")
+
+
+class MockCVClient(CVModelClient):
+    """Mock CV Client for Test Mode (Phase 7)."""
+    
+    async def connect(self):
+        logger.info("MockCVClient connected.")
+        
+    async def send_video_chunk(self, video_chunk: bytes):
+        # Simulate processing time
+        await asyncio.sleep(0.1)
+        
+    async def receive_gloss(self) -> CVResponse:
+        # Mock response as requested
+        return CVResponse(gloss="سبب رغبه شراء", raw={"gloss": "سبب رغبه شراء", "mock": True})
+        
+    async def disconnect(self):
+        logger.info("MockCVClient disconnected.")
+
+def get_cv_client() -> CVModelClient:
+    """Factory to return the appropriate CV client based on settings."""
+    if getattr(settings, "MOCK_CV", False):
+        return MockCVClient()
+    return CVWebSocketClient()

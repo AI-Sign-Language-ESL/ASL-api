@@ -110,10 +110,10 @@ class SignTranslationService:
         config: Optional[PipelineConfig] = None,
         event_callback: Optional[Callable] = None,
     ):
-        from tafahom_api.apps.v1.ai.clients.cv_ws_client import CVWebSocketClient
+        from tafahom_api.apps.v1.ai.clients.cv_ws_client import get_cv_client
         from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
 
-        self.cv_client = cv_client or CVWebSocketClient()
+        self.cv_client = cv_client or get_cv_client()
         self.nlp_client = nlp_client or NLPModelClient()
         self.retry_handler = retry_handler or RetryHandler(
             max_retries=getattr(settings, "MAX_CV_RETRIES", 3),
@@ -122,6 +122,16 @@ class SignTranslationService:
         )
         self.config = config or PipelineConfig()
         self.event_callback = event_callback
+
+    async def initialize(self):
+        """Called to initialize any persistent connections."""
+        if hasattr(self.cv_client, "connect"):
+            await self.cv_client.connect()
+
+    async def cleanup(self):
+        """Called to close persistent connections."""
+        if hasattr(self.cv_client, "disconnect"):
+            await self.cv_client.disconnect()
 
     async def translate(
         self, frames: List[bytes], session_id: Optional[str] = None
@@ -236,9 +246,13 @@ class SignTranslationService:
     ) -> CVResponse:
         timeout = self.config.cv_timeout
 
+        async def _cv_flow():
+            await self.cv_client.send_video_chunk(video_chunk)
+            return await self.cv_client.receive_gloss()
+
         try:
             result = await self.retry_handler.execute(
-                lambda: self.cv_client.send_video_chunk(video_chunk),
+                _cv_flow,
                 service_name="CV",
                 timeout=timeout,
             )

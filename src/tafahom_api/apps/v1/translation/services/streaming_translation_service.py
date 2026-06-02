@@ -10,7 +10,6 @@ from typing import List, Optional, Callable
 from django.utils import timezone
 from channels.db import database_sync_to_async
 
-from .pipeline_service import TranslationPipelineService
 from .sign_translation_service import SignTranslationService, PipelineConfig
 
 logger = logging.getLogger(__name__)
@@ -80,6 +79,7 @@ class StreamingTranslationService:
 
     async def start(self):
         """Called on WS connect"""
+        await self.sign_service.initialize()
         self.task = asyncio.create_task(self._ai_loop())
 
     async def shutdown(self):
@@ -95,6 +95,7 @@ class StreamingTranslationService:
         if self.translation:
             await self._finalize_translation()
 
+        await self.sign_service.cleanup()
         self.frame_buffer.clear()
 
     # --------------------------------------------------
@@ -271,7 +272,7 @@ class StreamingTranslationService:
             )
 
     # --------------------------------------------------
-    # FINALIZATION (VOICE GENERATED HERE)
+    # FINALIZATION
     # --------------------------------------------------
 
     async def _finalize_translation(self):
@@ -279,19 +280,6 @@ class StreamingTranslationService:
             return
 
         final_text = " ".join(self.partial_text_buffer).strip()
-        audio_base64 = None
-
-        if final_text:
-            try:
-                audio_bytes = (
-                    await TranslationPipelineService._tts_client.text_to_speech(
-                        final_text
-                    )
-                )
-                if audio_bytes:
-                    audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
-            except Exception:
-                logger.exception("TTS failed")
 
         await self._update_translation(
             output_text=final_text,
@@ -299,15 +287,30 @@ class StreamingTranslationService:
             completed_at=timezone.now(),
         )
 
-        payload = {
+        # 1) Send text immediately — frontend speaks via native TTS right away
+        await self.send_json({
             "type": "final_result",
             "text": final_text,
-        }
+        })
 
-        if audio_base64:
-            payload["audio"] = audio_base64
+        # 2) Fetch ElevenLabs audio in background — send when ready to upgrade quality
+        if final_text:
+            asyncio.create_task(self._send_elevenlabs_audio(final_text))
 
-        await self.send_json(payload)
+    async def _send_elevenlabs_audio(self, text: str):
+        """Fetch ElevenLabs audio and push it to the client as a follow-up event."""
+        try:
+            from tafahom_api.apps.v1.ai.clients.text_to_speech_client import TextToSpeechClient
+            audio_bytes = await TextToSpeechClient().text_to_speech(text)
+            if audio_bytes:
+                audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+                await self.send_json({
+                    "type": "tts_audio",
+                    "audio_b64": audio_b64,
+                    "mime_type": "audio/mpeg",
+                })
+        except Exception:
+            logger.exception("ElevenLabs background TTS failed — native TTS already played")
 
     # --------------------------------------------------
     # DB HELPERS (ALL LAZY IMPORTS)

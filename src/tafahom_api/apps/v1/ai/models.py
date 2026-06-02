@@ -106,3 +106,36 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:50]}..."
+
+
+class MultiModelTranslationMetric(models.Model):
+    """
+    Logs multi-model competition for gloss-to-text translations.
+    Stores latencies and outputs for mbart, mt5, and nllb, and the winner.
+    """
+    gloss = models.TextField()
+    
+    winner_model = models.CharField(max_length=50)
+    winner_latency_ms = models.PositiveIntegerField()
+    
+    mbart_output = models.TextField(blank=True, null=True)
+    mbart_latency_ms = models.PositiveIntegerField(blank=True, null=True)
+    
+    mt5_output = models.TextField(blank=True, null=True)
+    mt5_latency_ms = models.PositiveIntegerField(blank=True, null=True)
+    
+    nllb_output = models.TextField(blank=True, null=True)
+    nllb_latency_ms = models.PositiveIntegerField(blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = "ai_multimodel_translation_metric"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["winner_model"]),
+            models.Index(fields=["created_at"]),
+        ]
+        
+    def __str__(self):
+        return f"Metric: {self.gloss[:30]} | Winner: {self.winner_model} ({self.winner_latency_ms}ms)"

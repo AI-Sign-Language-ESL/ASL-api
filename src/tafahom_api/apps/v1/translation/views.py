@@ -538,108 +538,34 @@ class TestGlossView(APIView):
         logger.info("=" * 60)
         logger.info("Input gloss: %r", gloss)
 
-        nlp_url = getattr(settings, "AI_GLOSS_TO_TEXT_BASE_URL", "")
-        if not nlp_url:
-            logger.error("AI_GLOSS_TO_TEXT_BASE_URL is not configured")
+        from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
+        
+        try:
+            client = NLPModelClient()
+            result = asyncio.run(client.translate_gloss(gloss))
+            
+            logger.info("NLP translation result: %r", result.text)
+            logger.info("=" * 60)
+
             return Response(
-                {"error": "NLP service URL is not configured"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {
+                    "gloss": gloss,
+                    "translation": result.text,
+                    "winner_model": result.raw.get("winner_model"),
+                    "latency_ms": result.raw.get("latency_ms"),
+                },
+                status=status.HTTP_200_OK,
             )
-
-        translate_url = nlp_url.rstrip("/") + "/translate"
-
-        max_retries = getattr(settings, "NLP_RETRIES", 3)
-        timeout_seconds = getattr(settings, "NLP_REQUEST_TIMEOUT", 30)
-
-        payload = {"gloss": gloss}
-        last_exception = None
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(
-                    "NLP call attempt %d/%d — URL: %s, timeout: %ss",
-                    attempt, max_retries, translate_url, timeout_seconds,
-                )
-
-                with httpx.Client(timeout=timeout_seconds) as client:
-                    response = client.post(translate_url, json=payload)
-
-                logger.info(
-                    "NLP response (attempt %d) — status: %s",
-                    attempt, response.status_code,
-                )
-
-                if response.status_code == 503:
-                    logger.warning("NLP service unavailable (503), retrying...")
-                    last_exception = Exception("Service unavailable (503)")
-                    continue
-
-                response.raise_for_status()
-
-                result = response.json()
-                translation = (
-                    result.get("translation")
-                    or result.get("text")
-                    or result.get("gloss")
-                    or ""
-                )
-
-                if not translation:
-                    logger.warning(
-                        "NLP returned empty translation (attempt %d)", attempt
-                    )
-                    last_exception = ValueError("Empty translation from NLP")
-                    continue
-
-                logger.info("NLP translation result: %r", translation)
-                logger.info("=" * 60)
-
-                return Response(
-                    {
-                        "gloss": gloss,
-                        "translation": translation,
-                    },
-                    status=status.HTTP_200_OK,
-                )
-
-            except httpx.TimeoutException:
-                logger.warning(
-                    "NLP timeout (attempt %d/%d) after %ss",
-                    attempt, max_retries, timeout_seconds,
-                )
-                last_exception = Exception(
-                    f"NLP request timed out after {timeout_seconds}s"
-                )
-
-            except httpx.HTTPStatusError as e:
-                logger.warning(
-                    "NLP HTTP error (attempt %d/%d): %s",
-                    attempt, max_retries, e,
-                )
-                last_exception = e
-
-            except Exception as e:
-                logger.error(
-                    "NLP unexpected error (attempt %d/%d): %s: %s",
-                    attempt, max_retries, type(e).__name__, e,
-                )
-                last_exception = e
-
-            if attempt < max_retries:
-                backoff = min(attempt * 2, 10)
-                logger.info("Retrying in %ds...", backoff)
-                time.sleep(backoff)
-
-        logger.error("All %d NLP retries exhausted for gloss: %r", max_retries, gloss)
-        logger.info("=" * 60)
-
-        return Response(
-            {
-                "gloss": gloss,
-                "error": f"NLP service failed after {max_retries} retries: {last_exception}",
-            },
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+        except Exception as e:
+            logger.error("NLP service failed: %s", e)
+            logger.info("=" * 60)
+            return Response(
+                {
+                    "gloss": gloss,
+                    "error": f"NLP service failed: {e}",
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
 
 # =====================================================
@@ -702,4 +628,23 @@ class SaveTranslationHistoryView(APIView):
                 "remaining_tokens": subscription.remaining_tokens(),
             },
             status=status.HTTP_200_OK,
+        )
+
+# =====================================================
+# 🧪 MOCK CV ENDPOINT (Phase 7 Test Mode)
+# =====================================================
+
+class MockCVEndpointView(APIView):
+    """
+    Mock CV Endpoint for testing the Translation Pipeline.
+    POST /api/v1/translation/mock-cv/
+    
+    Returns the mocked gloss payload.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        return Response(
+            {"gloss": "سبب رغبه شراء"},
+            status=status.HTTP_200_OK
         )
