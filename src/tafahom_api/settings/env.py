@@ -95,7 +95,8 @@ if ENVIRONMENT == "PROD":
         "AI_GLOSS_TO_TEXT_BASE_URL": AI_GLOSS_TO_TEXT_BASE_URL,
         "AI_TEXT_TO_GLOSS_BASE_URL": AI_TEXT_TO_GLOSS_BASE_URL,
         "AI_CV_BASE_URL": AI_CV_BASE_URL,
-        "NLP_MODEL_URL": NLP_MODEL_URL,
+        "AI_STT_BASE_URL": AI_STT_BASE_URL,
+        "AI_TTS_BASE_URL": AI_TTS_BASE_URL,
     }.items():
         if not value:
             raise RuntimeError(f"{name} is required in PROD")
