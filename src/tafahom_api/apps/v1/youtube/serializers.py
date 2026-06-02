@@ -21,6 +21,17 @@ class TranscriptSegmentSerializer(serializers.Serializer):
     text = serializers.CharField()
 
 
+class TranscriptFetchSerializer(serializers.Serializer):
+    video_id = serializers.CharField(max_length=20)
+    language = serializers.CharField(max_length=10, required=False, default=None)
+
+    def validate_video_id(self, value):
+        import re
+        if not re.match(r"^[0-9A-Za-z_-]{11}$", value):
+            raise serializers.ValidationError("Invalid YouTube video ID format.")
+        return value
+
+
 class BrowserTranscriptSerializer(serializers.Serializer):
     video_id = serializers.CharField(max_length=20, required=False, allow_blank=True)
     title = serializers.CharField(max_length=500, required=False, allow_blank=True)

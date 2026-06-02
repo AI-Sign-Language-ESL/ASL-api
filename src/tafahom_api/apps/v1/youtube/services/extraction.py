@@ -20,7 +20,6 @@ def _fetch_transcript_video_id(video_id):
     Works with both youtube-transcript-api 0.6.x and 1.x.
     """
     if _HAS_LIST_TRANSCRIPTS:
-        # 1.x API
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             transcript = None
@@ -41,7 +40,6 @@ def _fetch_transcript_video_id(video_id):
         except Exception as e:
             logger.warning(f"youtube-transcript-api 1.x failed for {video_id}: {e}")
     else:
-        # 0.6.x API
         try:
             data = YouTubeTranscriptApi.get_transcript(video_id, languages=["ar"])
             if data:
@@ -52,6 +50,108 @@ def _fetch_transcript_video_id(video_id):
             logger.warning(f"youtube-transcript-api 0.6.x failed for {video_id}: {e}")
 
     return None, None
+
+
+def fetch_transcript_with_segments(video_id, preferred_lang=None):
+    """
+    Fetch transcript with timestamped segments.
+    Returns dict with segments, transcript text, source, and duration.
+    Falls back through Arabic → English → yt-dlp + Whisper.
+    """
+    segments = None
+    source = None
+
+    language_chain = (
+        [[preferred_lang], ["ar"], ["en"], ["en-US"]]
+        if preferred_lang
+        else [["ar"], ["en"], ["en-US"]]
+    )
+
+    if _HAS_LIST_TRANSCRIPTS:
+        try:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            transcript_obj = None
+            for langs in language_chain:
+                try:
+                    transcript_obj = transcript_list.find_transcript(langs)
+                    source = "transcript"
+                    break
+                except Exception:
+                    pass
+            if not transcript_obj:
+                for langs in language_chain:
+                    try:
+                        transcript_obj = transcript_list.find_generated_transcript(langs)
+                        source = "transcript"
+                        break
+                    except Exception:
+                        pass
+            if transcript_obj:
+                data = transcript_obj.fetch()
+                segments = [
+                    {
+                        "start": item.get("start", 0),
+                        "duration": item.get("duration", 0),
+                        "text": item.get("text", "").strip(),
+                    }
+                    for item in data if item.get("text", "").strip()
+                ]
+                source = transcript_obj.is_generated and "auto_generated" or "manual"
+        except Exception as e:
+            logger.warning(f"youtube-transcript-api list failed for {video_id}: {e}")
+    else:
+        flat_langs = [lang for langs in language_chain for lang in langs]
+        for lang in flat_langs:
+            try:
+                data = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
+                if data:
+                    segments = [
+                        {
+                            "start": item.get("start", 0),
+                            "duration": item.get("duration", 0),
+                            "text": item.get("text", "").strip(),
+                        }
+                        for item in data if item.get("text", "").strip()
+                    ]
+                    source = "transcript"
+                    break
+            except Exception:
+                continue
+
+    if segments:
+        transcript_text = " ".join(s["text"] for s in segments)
+        duration = int(segments[-1]["start"] + segments[-1]["duration"]) if segments else 0
+        return {
+            "success": True,
+            "transcript": transcript_text,
+            "segments": segments,
+            "source": source or "transcript",
+            "duration": duration,
+        }
+
+    # Fallback: yt-dlp + Whisper
+    logger.info("Transcript API failed, falling back to yt-dlp + Whisper for %s", video_id)
+    try:
+        youtube_url = f"https://youtube.com/watch?v={video_id}"
+        text = _extract_audio_and_transcribe(youtube_url)
+        if text:
+            return {
+                "success": True,
+                "transcript": text,
+                "segments": [],
+                "source": "whisper",
+                "duration": 0,
+            }
+    except Exception as e:
+        logger.error(f"Whisper fallback failed for {video_id}: {e}")
+
+    return {
+        "success": False,
+        "error": "No transcript available. Video may be unavailable, private, or have no captions.",
+        "segments": [],
+        "source": None,
+        "duration": 0,
+    }
 
 
 def _get_duration_from_transcript(video_id):

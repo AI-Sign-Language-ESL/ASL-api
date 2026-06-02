@@ -11,9 +11,11 @@ from .serializers import (
     YouTubeTranslationCreateSerializer,
     VideoUploadSerializer,
     BrowserTranscriptSerializer,
+    TranscriptFetchSerializer,
 )
 from .services.browser_transcript import process_browser_transcript
 from .services.translation import start_youtube_translation
+from .services.extraction import fetch_transcript_with_segments
 from tafahom_api.apps.v1.notifications.models import Notification
 from tafahom_api.common.decorators import require_token_and_plan
 
@@ -399,6 +401,41 @@ def _extract_video_id(url):
 def _is_video_id(value):
     import re
     return bool(re.match(r"^[0-9A-Za-z_-]{11}$", value))
+
+
+class FetchTranscriptView(APIView):
+    """
+    POST /api/v1/youtube/transcript/fetch/
+    Accepts video_id, fetches transcript server-side using youtube-transcript-api.
+    Falls back to yt-dlp + Whisper if no captions available.
+    Returns timestamped transcript segments.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=0, min_plan="basic", feature_name="YouTube Translation")
+    def post(self, request):
+        serializer = TranscriptFetchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        video_id = serializer.validated_data["video_id"]
+        language = serializer.validated_data.get("language")
+        logger.info(f"Fetching transcript for video_id: {video_id} (lang: {language or 'auto'})")
+
+        try:
+            result = fetch_transcript_with_segments(video_id, preferred_lang=language)
+
+            if result["success"]:
+                return Response(result, status=status.HTTP_200_OK)
+
+            logger.warning(f"Transcript fetch failed for {video_id}: {result.get('error')}")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            logger.exception(f"Transcript fetch error for {video_id}: {e}")
+            return Response(
+                {"success": False, "error": "Failed to fetch transcript. Please try uploading the video file."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class YouTubeUploadVideoView(APIView):
