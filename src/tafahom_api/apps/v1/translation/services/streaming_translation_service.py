@@ -5,12 +5,13 @@ import uuid
 import logging
 import base64
 from collections import deque
-from typing import List
+from typing import List, Optional, Callable
 
 from django.utils import timezone
 from channels.db import database_sync_to_async
 
 from .pipeline_service import TranslationPipelineService
+from .sign_translation_service import SignTranslationService, PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,15 @@ class StreamingTranslationService:
     - When user stops → generate VOICE ONCE
     """
 
-    def __init__(self, *, user, send_json, close_ws, config):
+    def __init__(
+        self,
+        *,
+        user,
+        send_json,
+        close_ws,
+        config,
+        sign_service: Optional[SignTranslationService] = None,
+    ):
         self.user = user
         self.send_json = send_json
         self.close_ws = close_ws
@@ -49,6 +58,21 @@ class StreamingTranslationService:
         self.last_sent = time.time()
 
         self.task: asyncio.Task | None = None
+
+        pipeline_config = PipelineConfig(
+            send_interval=config.get("SEND_INTERVAL", 5),
+            max_buffer_size=config.get("MAX_BUFFER_SIZE", 120),
+            max_batch_frames=config.get("MAX_BATCH_FRAMES", 30),
+            max_frames_per_request=config.get("MAX_FRAMES_PER_REQUEST", 64),
+            max_requests_per_session=config.get("MAX_REQUESTS_PER_SESSION", 5),
+            pipeline_timeout_seconds=config.get("PIPELINE_TIMEOUT_SECONDS", 15),
+            heartbeat_timeout=config.get("HEARTBEAT_TIMEOUT", 30),
+            ws_max_connection_time=config.get("WS_MAX_CONNECTION_TIME", 900),
+        )
+        self.sign_service = sign_service or SignTranslationService(
+            config=pipeline_config,
+            event_callback=self._on_pipeline_event,
+        )
 
     # --------------------------------------------------
     # LIFECYCLE
@@ -200,21 +224,41 @@ class StreamingTranslationService:
     # AI BATCH PROCESSING (TEXT ONLY)
     # --------------------------------------------------
 
+    async def _on_pipeline_event(self, payload: dict):
+        event_type = payload.get("type", "")
+
+        if event_type == "translation_started":
+            await self.send_json({"type": "translation_started", "request_id": payload.get("request_id", "")})
+
+        elif event_type == "gloss_received":
+            await self.send_json({
+                "type": "gloss_received",
+                "gloss": payload.get("gloss", ""),
+            })
+
+        elif event_type == "translation_received":
+            await self.send_json({
+                "type": "translation_received",
+                "gloss": payload.get("gloss", ""),
+                "text": payload.get("text", ""),
+            })
+
+        elif event_type == "translation_error":
+            await self.send_json({
+                "type": "translation_error",
+                "stage": payload.get("stage", ""),
+                "message": payload.get("error", "Unknown error"),
+            })
+
     async def _process_batch(self, frames: List[bytes]):
         try:
-            encoded_frames = [
-                base64.b64encode(frame).decode("utf-8") for frame in frames
-            ]
-
-            response = await asyncio.wait_for(
-                TranslationPipelineService.sign_to_text(encoded_frames),
+            result = await asyncio.wait_for(
+                self.sign_service.translate(frames, session_id=self.session_id),
                 timeout=self.config["PIPELINE_TIMEOUT_SECONDS"],
             )
 
-            text = response.get("text")
-            if text:
-                self.partial_text_buffer.append(text)
-                await self.send_json({"type": "partial_result", "text": text})
+            if result.success and result.text:
+                self.partial_text_buffer.append(result.text)
 
         except asyncio.TimeoutError:
             await self.send_json(

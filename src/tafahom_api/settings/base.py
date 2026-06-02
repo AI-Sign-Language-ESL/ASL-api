@@ -27,6 +27,8 @@ from .env import (
     AI_GLOSS_TO_TEXT_BASE_URL,
     AI_TEXT_TO_GLOSS_BASE_URL,
     AI_CV_BASE_URL,
+    CV_MODEL_WS_URL,
+    NLP_MODEL_URL,
     GOOGLE_CLIENT_ID,
     UNITY_SIGN_MATCHER_URL,
     EMAIL_HOST as ENV_EMAIL_HOST,
@@ -215,6 +217,16 @@ WS_MAX_CONNECTION_TIME = WS_MAX_CONNECTION_TIME
 # HYBRID TRANSLATION PIPELINE
 # =============================================================================
 AI_TIMEOUT_SECONDS = 1.5
+
+# =============================================================================
+# SIGN TRANSLATION PIPELINE (CV + NLP)
+# =============================================================================
+CV_MODEL_WS_URL = CV_MODEL_WS_URL
+NLP_MODEL_URL = NLP_MODEL_URL
+CV_WS_TIMEOUT = 30
+NLP_REQUEST_TIMEOUT = 30
+MAX_CV_RETRIES = 3
+NLP_RETRIES = 3
 
 
 # =============================================================================
