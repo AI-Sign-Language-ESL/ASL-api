@@ -393,88 +393,57 @@ class UnityTranslateView(APIView):
             logger.info("=" * 50)
             return Response(empty)
 
-        # 1️⃣ Try NLP text-to-gloss first (fail fast — 5s max)
-        try:
-            logger.info("[UnitySign] Calling NLP text-to-gloss ...")
-            ai_result = asyncio.run(
-                asyncio.wait_for(
-                    TranslationPipelineService._text_to_gloss_client.text_to_gloss(text),
-                    timeout=min(getattr(settings, 'AI_TIMEOUT', 30), 5),
-                )
-            )
-
-            logger.info("AI RAW RESULT: %s", ai_result)
-
-            raw = (
-                ai_result.get("gloss_translation")
-                or ai_result.get("gloss")
-                or ai_result.get("text")
-                or text
-            )
-
-            logger.info("MODEL OUTPUT : %r", raw)
-
-            result = translate_to_animation_names(str(raw))
-            result["source"] = "nlp"
-
-            logger.info("ANIMATIONS   : %s", result["animations"])
-            logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
-            logger.info("SOURCE       : nlp")
-
-            with transaction.atomic():
-                consume_generation_token(subscription)
-            result["remaining_tokens"] = subscription.remaining_tokens()
-            logger.info("TOKENS       : consumed 10, %s remaining", result["remaining_tokens"])
-            logger.info("FINAL RESP   : %s", result)
-            logger.info("=" * 50)
-
-            return Response(result)
-
-        except asyncio.TimeoutError:
-            logger.warning("[UnitySign] NLP timed out (AI_TIMEOUT=%s s), falling back ...", settings.AI_TIMEOUT)
-
-        except Exception as e:
-            logger.warning("[UnitySign] NLP failed: %s: %s", type(e).__name__, e)
-
-        # 2️⃣ Fallback: Unity SignMatcher
-        logger.info("FALLBACK     : trying Unity SignMatcher")
-        from .services.unity_sign_matcher_client import UnitySignMatcherClient
-        client = UnitySignMatcherClient()
-        animations = asyncio.run(client.match(text))
-
-        logger.info("SIGN MATCHER : %s", animations)
-
-        if animations:
-            fallback_resp = {
-                "animations": animations,
-                "unknown_words": [],
-                "source": "unity_matcher",
-            }
-            with transaction.atomic():
-                consume_generation_token(subscription)
-            fallback_resp["remaining_tokens"] = subscription.remaining_tokens()
-            logger.info("TOKENS       : consumed 10, %s remaining", fallback_resp["remaining_tokens"])
-            logger.info("FINAL RESP   : %s", fallback_resp)
-            logger.info("=" * 50)
-            return Response(fallback_resp)
-
-        # 3️⃣ Last resort: direct ANIMATION_MAP lookup
-        logger.info("FALLBACK     : trying direct ANIMATION_MAP lookup")
-        logger.info("MAP INPUT    : words = %s", text.split())
-
-        # Log each word lookup so we can see what's missing from the map
-        for word in text.split():
-            if word in ANIMATION_MAP:
-                logger.info("MAP HIT      : %r -> %r", word, ANIMATION_MAP[word])
-            else:
-                logger.warning("MAP MISS     : %r not found in ANIMATION_MAP", word)
-
+        # Phase 1: Direct ANIMATION_MAP lookup first — never send known words to NLP
         result = translate_to_animation_names(text)
-        result["source"] = "sign_map"
+        source_parts = ["sign_map"] if result["animations"] else []
+        logger.info("PHASE 1 (sign map): animations=%s unknown=%s", result["animations"], result["unknown_words"])
 
-        logger.info("ANIMATIONS   : %s", result["animations"])
-        logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
-        logger.info("SOURCE       : sign_map")
+        # Phase 2: NLP only on words the sign map could NOT match
+        if result["unknown_words"]:
+            unknown_text = " ".join(result["unknown_words"])
+            logger.info("PHASE 2 (NLP on unknowns): %r", unknown_text)
+            try:
+                nlp_timeout = min(getattr(settings, 'AI_TIMEOUT', 30), 10)
+                ai_result = asyncio.run(
+                    asyncio.wait_for(
+                        TranslationPipelineService._text_to_gloss_client.text_to_gloss(unknown_text),
+                        timeout=nlp_timeout,
+                    )
+                )
+                logger.info("NLP RAW OUTPUT: %s", ai_result)
+                raw = (
+                    ai_result.get("gloss_translation")
+                    or ai_result.get("gloss")
+                    or ai_result.get("text")
+                    or ""
+                )
+                if raw.strip():
+                    nlp_matched = translate_to_animation_names(str(raw))
+                    if nlp_matched["animations"]:
+                        result["animations"].extend(nlp_matched["animations"])
+                        source_parts.append("nlp")
+                        logger.info("NLP added animations: %s", nlp_matched["animations"])
+                    result["unknown_words"] = nlp_matched["unknown_words"]
+            except asyncio.TimeoutError:
+                logger.warning("NLP timed out after %ss, skipping", nlp_timeout)
+            except Exception as e:
+                logger.warning("NLP failed: %s: %s", type(e).__name__, e)
+
+        # Phase 3: Unity SignMatcher for remaining unknowns
+        if not result["animations"] and result["unknown_words"]:
+            logger.info("PHASE 3 (Unity SignMatcher): %r", result["unknown_words"])
+            try:
+                from .services.unity_sign_matcher_client import UnitySignMatcherClient
+                client = UnitySignMatcherClient()
+                animations = asyncio.run(client.match(" ".join(result["unknown_words"])))
+                logger.info("SIGN MATCHER : %s", animations)
+                if animations:
+                    result["animations"].extend(animations)
+                    source_parts.append("unity_matcher")
+            except Exception as e:
+                logger.warning("SignMatcher failed: %s", e)
+
+        result["source"] = "+".join(source_parts) if source_parts else "none"
 
         with transaction.atomic():
             consume_generation_token(subscription)

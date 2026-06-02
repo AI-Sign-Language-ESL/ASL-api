@@ -344,60 +344,60 @@ class ProcessTranscriptView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # 1️⃣ Try NLP text-to-gloss first (fail fast with timeout)
-        try:
-            logger.info("[ProcessTranscript] Calling NLP text-to-gloss ...")
-            ai_result = asyncio.run(
-                asyncio.wait_for(
-                    TranslationPipelineService._text_to_gloss_client.text_to_gloss(transcript),
-                    timeout=min(getattr(settings, 'AI_TIMEOUT', 30), 5),
+        # Phase 1: Direct ANIMATION_MAP lookup first — never send known words to NLP
+        result = translate_to_animation_names(transcript)
+        source_parts = ["sign_map"] if result["animations"] else []
+        logger.info("PHASE 1 (sign map): animations=%s unknown=%s", result["animations"], result["unknown_words"])
+
+        # Phase 2: NLP only on words that the sign map could NOT match
+        if result["unknown_words"]:
+            unknown_text = " ".join(result["unknown_words"])
+            logger.info("PHASE 2 (NLP on unknowns): %r", unknown_text)
+            try:
+                nlp_timeout = min(getattr(settings, 'AI_TIMEOUT', 30), 10)
+                ai_result = asyncio.run(
+                    asyncio.wait_for(
+                        TranslationPipelineService._text_to_gloss_client.text_to_gloss(unknown_text),
+                        timeout=nlp_timeout,
+                    )
                 )
-            )
-            logger.info("AI RAW RESULT: %s", ai_result)
+                logger.info("NLP RAW OUTPUT: %s", ai_result)
+                raw = (
+                    ai_result.get("gloss_translation")
+                    or ai_result.get("gloss")
+                    or ai_result.get("text")
+                    or ""
+                )
+                if raw.strip():
+                    # Match NLP output against sign map
+                    nlp_matched = translate_to_animation_names(str(raw))
+                    if nlp_matched["animations"]:
+                        result["animations"].extend(nlp_matched["animations"])
+                        source_parts.append("nlp")
+                        logger.info("NLP added animations: %s", nlp_matched["animations"])
+                    result["unknown_words"] = nlp_matched["unknown_words"]
+                else:
+                    logger.warning("NLP returned empty output")
+            except asyncio.TimeoutError:
+                logger.warning("NLP timed out after %ss, skipping", nlp_timeout)
+            except Exception as e:
+                logger.warning("NLP failed: %s: %s", type(e).__name__, e)
 
-            raw = (
-                ai_result.get("gloss_translation")
-                or ai_result.get("gloss")
-                or ai_result.get("text")
-                or transcript
-            )
-            logger.info("MODEL OUTPUT : %r", raw)
-
-            result = translate_to_animation_names(str(raw))
-            result["source"] = "nlp"
-            logger.info("ANIMATIONS   : %s", result["animations"])
-            logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
-
-        except asyncio.TimeoutError:
-            logger.warning("[ProcessTranscript] NLP timed out, falling back ...")
-            result = None
-        except Exception as e:
-            logger.warning("[ProcessTranscript] NLP failed: %s: %s", type(e).__name__, e)
-            result = None
-
-        # 2️⃣ Fallback: Unity SignMatcher
-        if result is None:
-            logger.info("[ProcessTranscript] Falling back to Unity SignMatcher")
+        # Phase 3: Fallback — Unity SignMatcher for remaining unknowns
+        if not result["animations"] and result["unknown_words"]:
+            logger.info("PHASE 3 (Unity SignMatcher): %r", result["unknown_words"])
             try:
                 from tafahom_api.apps.v1.translation.services.unity_sign_matcher_client import UnitySignMatcherClient
                 client = UnitySignMatcherClient()
-                animations = asyncio.run(client.match(transcript))
+                animations = asyncio.run(client.match(" ".join(result["unknown_words"])))
                 logger.info("SIGN MATCHER : %s", animations)
                 if animations:
-                    result = {"animations": animations, "unknown_words": [], "source": "unity_matcher"}
-                else:
-                    result = None
+                    result["animations"].extend(animations)
+                    source_parts.append("unity_matcher")
             except Exception as e:
-                logger.warning("[ProcessTranscript] SignMatcher failed: %s", e)
-                result = None
+                logger.warning("SignMatcher failed: %s", e)
 
-        # 3️⃣ Last resort: direct ANIMATION_MAP lookup
-        if result is None:
-            logger.info("[ProcessTranscript] Falling back to direct ANIMATION_MAP lookup")
-            result = translate_to_animation_names(transcript)
-            result["source"] = "sign_map"
-            logger.info("ANIMATIONS   : %s", result["animations"])
-            logger.info("UNKNOWN WORDS: %s", result["unknown_words"])
+        result["source"] = "+".join(source_parts) if source_parts else "none"
 
         # Save record and consume tokens
         with transaction.atomic():
