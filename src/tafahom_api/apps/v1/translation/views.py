@@ -19,6 +19,7 @@ from .models import TranslationRequest, SignLanguageConfig
 from drf_spectacular.utils import extend_schema
 
 from .serializers import (
+    TextToSignSerializer,
     TranslationRequestCreateSerializer,
     TranslationRequestStatusSerializer,
     SignLanguageConfigSerializer,
@@ -36,7 +37,10 @@ from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClien
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from tafahom_api.apps.v1.billing.services import consume_translation_token, consume_generation_token, consume_history_save_token
 from tafahom_api.common.decorators import require_token_and_plan
+from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
 from tafahom_api.apps.v1.translation.services.sign_matcher_service import match_sign, normalize_arabic_text
+from tafahom_api.apps.v1.translation.services.cache_service import get_cached_translation, set_cached_translation
+from tafahom_api.apps.v1.translation.services.ai_service import call_ai_translation
 
 logger = logging.getLogger(__name__)
 
