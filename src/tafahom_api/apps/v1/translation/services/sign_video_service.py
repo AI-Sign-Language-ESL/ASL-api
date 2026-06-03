@@ -3,7 +3,7 @@
 import os
 import subprocess
 import hashlib
-from ..sign_map import SIGN_MAP
+from ..sign_map import ANIMATION_MAP, SIGN_MAP
 
 MEDIA_ROOT = "/app/media"
 SIGNS_DIR = os.path.join(MEDIA_ROOT, "signs")
@@ -20,10 +20,12 @@ def generate_sign_video_from_gloss(gloss_tokens: list[str]) -> str:
 
     for token in gloss_tokens:
         token = token.strip()
-        if token not in SIGN_MAP:
+        if token in SIGN_MAP:
+            files.append(os.path.join(SIGNS_DIR, SIGN_MAP[token]))
+        elif token in ANIMATION_MAP:
+            files.append(os.path.join(SIGNS_DIR, ANIMATION_MAP[token] + ".mov"))
+        else:
             raise ValueError(f"No sign video for gloss: {token}")
-
-        files.append(os.path.join(SIGNS_DIR, SIGN_MAP[token]))
 
     sentence_hash = hashlib.md5("_".join(gloss_tokens).encode()).hexdigest()
     output_path = os.path.join(GENERATED_DIR, f"{sentence_hash}.mp4")

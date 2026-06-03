@@ -3,9 +3,9 @@ from django.db import transaction
 from asgiref.sync import async_to_sync
 
 from tafahom_api.apps.v1.youtube.models import YouTubeTranslation
-from tafahom_api.apps.v1.translation.services.pipeline_service import normalize_arabic
 from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
-from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
+from tafahom_api.apps.v1.translation.services.sign_translation_service import normalize_arabic
+from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def process_browser_transcript(transcript, user, video_id="", title="", language
     gloss_tokens = []
     try:
         ai_result = async_to_sync(
-            TranslationPipelineService._text_to_gloss_client.text_to_gloss
+            TextToGlossClient().text_to_gloss
         )(normalized)
         raw = (
             ai_result.get("gloss_translation")

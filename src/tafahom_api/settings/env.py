@@ -87,6 +87,11 @@ AI_CV_BASE_URL = os.getenv("AI_CV_BASE_URL")
 # =============================================================================
 CV_MODEL_WS_URL = os.getenv("CV_MODEL_WS_URL")
 
+# =============================================================================
+# MOCK CV MODE (bypass CV model, return hardcoded gloss for testing)
+# =============================================================================
+MOCK_CV = os.getenv("MOCK_CV", "").lower() in ("true", "1", "yes")
+
 
 
 if ENVIRONMENT == "PROD":

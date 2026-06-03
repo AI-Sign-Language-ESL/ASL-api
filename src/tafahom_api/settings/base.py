@@ -30,6 +30,7 @@ from .env import (
     AI_TEXT_TO_GLOSS_BASE_URL,
     AI_CV_BASE_URL,
     CV_MODEL_WS_URL,
+    MOCK_CV,
     GOOGLE_CLIENT_ID,
     UNITY_SIGN_MATCHER_URL,
     EMAIL_HOST as ENV_EMAIL_HOST,
@@ -227,6 +228,7 @@ CV_WS_TIMEOUT = 30
 NLP_REQUEST_TIMEOUT = 30
 MAX_CV_RETRIES = 3
 NLP_RETRIES = 3
+MOCK_CV = MOCK_CV
 
 
 # =============================================================================

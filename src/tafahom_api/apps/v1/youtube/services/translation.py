@@ -5,7 +5,7 @@ from django.db import transaction
 from tafahom_api.apps.v1.youtube.models import YouTubeTranslation
 from tafahom_api.apps.v1.notifications.models import Notification
 from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
-from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
+from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
 from tafahom_api.apps.v1.youtube.services.extraction import extract_transcript
 from django.conf import settings
 from asgiref.sync import async_to_sync
@@ -48,7 +48,7 @@ def process_youtube_translation_task(translation_id):
         
         try:
             # Try NLP first
-            ai_result = async_to_sync(TranslationPipelineService._text_to_gloss_client.text_to_gloss)(transcript)
+            ai_result = async_to_sync(TextToGlossClient().text_to_gloss)(transcript)
             raw = ai_result.get("gloss_translation") or ai_result.get("gloss") or ai_result.get("text") or transcript
             animations_data = translate_to_animation_names(str(raw))
         except Exception as e:

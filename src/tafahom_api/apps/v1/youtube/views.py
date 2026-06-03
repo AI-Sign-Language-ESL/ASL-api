@@ -29,9 +29,8 @@ from tafahom_api.apps.v1.translation.services.youtube_service import (
     YouTubeProcessingError
 )
 from tafahom_api.apps.v1.youtube.services.extraction import extract_transcript
-from tafahom_api.apps.v1.translation.services.pipeline_service import normalize_arabic
+from tafahom_api.apps.v1.translation.services.sign_translation_service import normalize_arabic
 from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
-from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
 from asgiref.sync import async_to_sync
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
@@ -192,7 +191,7 @@ class YouTubeSignTranslateView(APIView):
         gloss_tokens = []
         try:
             ai_result = async_to_sync(
-                TranslationPipelineService._text_to_gloss_client.text_to_gloss
+                TextToGlossClient().text_to_gloss
             )(transcript)
             raw = (
                 ai_result.get("gloss_translation")
@@ -355,9 +354,10 @@ class ProcessTranscriptView(APIView):
             logger.info("PHASE 2 (NLP on unknowns): %r", unknown_text)
             try:
                 nlp_timeout = min(getattr(settings, 'AI_TIMEOUT', 30), 10)
+                t2g_client = TextToGlossClient()
                 ai_result = asyncio.run(
                     asyncio.wait_for(
-                        TranslationPipelineService._text_to_gloss_client.text_to_gloss(unknown_text),
+                        t2g_client.text_to_gloss(unknown_text),
                         timeout=nlp_timeout,
                     )
                 )

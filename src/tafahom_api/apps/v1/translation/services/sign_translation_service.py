@@ -1,10 +1,18 @@
 import asyncio
 import logging
+import re
 import time
-from typing import Any, Callable, List, Optional
+import uuid
+from typing import Any, Callable, Dict, List, Optional
+
+from django.conf import settings
+
 from tafahom_api.apps.v1.ai.clients.cv_ws_client import get_cv_client
 from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
-from django.conf import settings
+from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
+from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
+from tafahom_api.apps.v1.ai.clients.text_to_speech_client import TextToSpeechClient
+from tafahom_api.apps.v1.ai.utils.ensure_wav import ensure_wav
 
 from tafahom_api.apps.v1.translation.services.dtos import (
     CVResponse,
@@ -12,6 +20,10 @@ from tafahom_api.apps.v1.translation.services.dtos import (
     PipelineConfig,
     TranslationPipelineResult,
 )
+from tafahom_api.apps.v1.translation.services.sign_video_service import (
+    generate_sign_video_from_gloss,
+)
+from tafahom_api.apps.v1.translation.sign_map import ANIMATION_MAP, SIGN_MAP, SYNONYM_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -330,3 +342,119 @@ class SignTranslationService:
         if self.event_callback:
             payload = {"type": event_type, **data}
             await self.event_callback(payload)
+
+    # --------------------------------------------------
+    # TEXT → SIGN (avatar pipeline, static helpers)
+    # --------------------------------------------------
+
+    @staticmethod
+    def _with_timeout(coro):
+        return asyncio.wait_for(coro, timeout=settings.AI_TIMEOUT)
+
+    @staticmethod
+    def _extract_gloss(nlp_resp: Dict[str, Any]) -> List[str]:
+        raw = (
+            nlp_resp.get("gloss_translation")
+            or nlp_resp.get("gloss")
+            or nlp_resp.get("text")
+        )
+        if not raw:
+            raise ValueError("NLP returned empty output")
+        normalized = normalize_arabic(str(raw))
+        tokens = normalized.split()
+        resolved: List[str] = []
+        for token in tokens:
+            if token in SIGN_MAP or token in ANIMATION_MAP:
+                resolved.append(token)
+                continue
+            mapped = SYNONYM_MAP.get(token)
+            if mapped and (mapped in SIGN_MAP or mapped in ANIMATION_MAP):
+                resolved.append(mapped)
+        if not resolved:
+            raise ValueError(f"No supported sign tokens found for input: {raw}")
+        return resolved
+
+    @classmethod
+    async def text_to_sign(cls, text: str) -> Dict[str, Any]:
+        if not text or not text.strip():
+            raise RuntimeError("Text must not be empty")
+        request_id = str(uuid.uuid4())
+        start = time.perf_counter()
+
+        # Phase 1: Try direct sign-map match per token
+        normalized = normalize_arabic(text)
+        tokens = normalized.split()
+        resolved: List[str] = []
+        unmatched: List[str] = []
+
+        for token in tokens:
+            if token in SIGN_MAP or token in ANIMATION_MAP:
+                resolved.append(token)
+                continue
+            mapped = SYNONYM_MAP.get(token)
+            if mapped and (mapped in SIGN_MAP or mapped in ANIMATION_MAP):
+                resolved.append(mapped)
+                continue
+            unmatched.append(token)
+
+        # Phase 2: Send only unmatched words to NLP text-to-gloss
+        if unmatched:
+            nlp_resp = await cls._with_timeout(
+                TextToGlossClient().text_to_gloss(" ".join(unmatched))
+            )
+            nlp_resolved = cls._extract_gloss(nlp_resp)
+            resolved.extend(nlp_resolved)
+
+        # Deduplicate while preserving order
+        seen: set = set()
+        gloss: List[str] = []
+        for t in resolved:
+            if t not in seen:
+                seen.add(t)
+                gloss.append(t)
+
+        if not gloss:
+            raise ValueError(f"No supported sign tokens found for input: {text}")
+
+        video_url = generate_sign_video_from_gloss(gloss)
+        logger.info(
+            "text_to_sign_success",
+            extra={
+                "request_id": request_id,
+                "gloss": gloss,
+                "direct_match": len(tokens) - len(unmatched),
+                "nlp_match": len(gloss) - (len(tokens) - len(unmatched)),
+                "duration_ms": (time.perf_counter() - start) * 1000,
+            },
+        )
+        return {"gloss": gloss, "video": video_url}
+
+    @classmethod
+    async def voice_to_sign(cls, uploaded_file) -> Dict[str, Any]:
+        request_id = str(uuid.uuid4())
+        start = time.perf_counter()
+        wav_file = ensure_wav(uploaded_file)
+        stt_resp = await cls._with_timeout(SpeechToTextClient().speech_to_text(wav_file))
+        text = stt_resp.get("text")
+        if not text:
+            raise RuntimeError("STT returned empty text")
+        result = await cls.text_to_sign(text)
+        logger.info(
+            "voice_to_sign_success",
+            extra={
+                "request_id": request_id,
+                "gloss": result["gloss"],
+                "duration_ms": (time.perf_counter() - start) * 1000,
+            },
+        )
+        return {"text": text, "gloss": result["gloss"], "video": result["video"]}
+
+
+def normalize_arabic(text: str) -> str:
+    text = re.sub("[إأآا]", "ا", text)
+    text = re.sub("ى", "ي", text)
+    text = re.sub("ؤ", "و", text)
+    text = re.sub("ئ", "ي", text)
+    text = re.sub("ة", "ه", text)
+    text = re.sub("[ًٌٍَُِّْ]", "", text)
+    return text.strip()

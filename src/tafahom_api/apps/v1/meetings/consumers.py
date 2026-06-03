@@ -133,8 +133,8 @@ class MeetingConsumer(AsyncWebsocketConsumer):
 
             # === TEXT TO SIGN TRANSLATION ===
             elif message_type == "text_to_sign":
-                from tafahom_api.apps.v1.translation.services.streaming_translation_service import TranslationPipelineService
-                result = await TranslationPipelineService.text_to_sign(data.get("text"))
+                from tafahom_api.apps.v1.translation.services.sign_translation_service import SignTranslationService
+                result = await SignTranslationService.text_to_sign(data.get("text"))
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {

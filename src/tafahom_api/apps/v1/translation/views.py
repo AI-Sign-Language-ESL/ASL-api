@@ -32,22 +32,9 @@ from .services.youtube_service import (
 )
 
 from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextClient
+from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from tafahom_api.apps.v1.billing.services import consume_translation_token, consume_generation_token, consume_history_save_token
-from tafahom_api.apps.v1.translation.services.sign_video_service import (
-    generate_sign_video_from_gloss,
-)
-from tafahom_api.apps.v1.translation.services.streaming_translation_service import (
-    TranslationPipelineService,
-)
-from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
-from tafahom_api.apps.v1.translation.serializers import TextToSignSerializer
-from tafahom_api.apps.v1.translation.sign_map import ANIMATION_MAP
-
-from tafahom_api.common.decorators import require_token_and_plan
-
-from tafahom_api.apps.v1.translation.services.cache_service import get_cached_translation, set_cached_translation
-from tafahom_api.apps.v1.translation.services.ai_service import call_ai_translation
 from tafahom_api.apps.v1.translation.services.sign_matcher_service import match_sign, normalize_arabic_text
 
 logger = logging.getLogger(__name__)
@@ -184,20 +171,14 @@ class TranslateToSignView(generics.GenericAPIView):
 
         text = serializer.validated_data["text"]
 
-        # 1️⃣ Text → Gloss (AI)
+        # 1️⃣ Text → Sign (sign-map + NLP fallback)
         try:
-            ai_result = asyncio.run(TranslationPipelineService.text_to_sign(text))
-            gloss_tokens = ai_result["gloss"]
+            ai_result = asyncio.run(SignTranslationService.text_to_sign(text))
+            video_url = ai_result["video"]
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2️⃣ Gloss → Sign Video
-        try:
-            video_url = generate_sign_video_from_gloss(gloss_tokens)
-        except ValueError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 3️⃣ Save + Consume Tokens
+        # 2️⃣ Save + Consume Tokens
         with transaction.atomic():
             consume_generation_token(subscription)
 
@@ -325,16 +306,14 @@ class YouTubeTranslateView(APIView):
                 except Exception as e:
                     logger.error("Failed to clean up temp dir %s: %s", output_dir, e)
 
-        # 3️⃣ Text-to-Sign (generate sign language video)
+        # 3️⃣ Text-to-Sign (sign-map + NLP fallback)
         try:
-            ai_result = asyncio.run(TranslationPipelineService.text_to_sign(transcribed_text))
-            gloss_tokens = ai_result["gloss"]
-
-            video_url = generate_sign_video_from_gloss(gloss_tokens)
+            ai_result = asyncio.run(SignTranslationService.text_to_sign(transcribed_text))
+            video_url = ai_result["video"]
         except ValueError as e:
             return Response(
                 {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_500_INTERNAL_ERROR,
             )
 
         # 4️⃣ Save + Consume Tokens
@@ -405,9 +384,10 @@ class UnityTranslateView(APIView):
             logger.info("PHASE 2 (NLP on unknowns): %r", unknown_text)
             try:
                 nlp_timeout = min(getattr(settings, 'AI_TIMEOUT', 30), 10)
+                t2g_client = TextToGlossClient()
                 ai_result = asyncio.run(
                     asyncio.wait_for(
-                        TranslationPipelineService._text_to_gloss_client.text_to_gloss(unknown_text),
+                        t2g_client.text_to_gloss(unknown_text),
                         timeout=nlp_timeout,
                     )
                 )
