@@ -2,7 +2,8 @@ import asyncio
 import logging
 import time
 from typing import Any, Callable, List, Optional
-
+from tafahom_api.apps.v1.ai.clients.cv_ws_client import get_cv_client
+from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
 from django.conf import settings
 
 from tafahom_api.apps.v1.translation.services.dtos import (
@@ -110,8 +111,7 @@ class SignTranslationService:
         config: Optional[PipelineConfig] = None,
         event_callback: Optional[Callable] = None,
     ):
-        from tafahom_api.apps.v1.ai.clients.cv_ws_client import get_cv_client
-        from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
+        
 
         self.cv_client = cv_client or get_cv_client()
         self.nlp_client = nlp_client or NLPModelClient()
