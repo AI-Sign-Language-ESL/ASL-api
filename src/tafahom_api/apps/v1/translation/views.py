@@ -35,6 +35,7 @@ from tafahom_api.apps.v1.ai.clients.speech_to_text_client import SpeechToTextCli
 from tafahom_api.apps.v1.ai.clients.text_to_gloss_client import TextToGlossClient
 from tafahom_api.apps.v1.billing.models import Subscription, SubscriptionPlan
 from tafahom_api.apps.v1.billing.services import consume_translation_token, consume_generation_token, consume_history_save_token
+from tafahom_api.common.decorators import require_token_and_plan
 from tafahom_api.apps.v1.translation.services.sign_matcher_service import match_sign, normalize_arabic_text
 
 logger = logging.getLogger(__name__)
