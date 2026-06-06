@@ -83,6 +83,12 @@ AI_TEXT_TO_GLOSS_BASE_URL = os.getenv("AI_TEXT_TO_GLOSS_BASE_URL")
 AI_CV_BASE_URL = os.getenv("AI_CV_BASE_URL")
 
 # =============================================================================
+# MODAL SIGN LANGUAGE PREDICTION
+# =============================================================================
+MODAL_API_PREDICT_URL = os.getenv("MODAL_API_PREDICT_URL", "https://zein1312004--sign-language-api-predict.modal.run")
+MODAL_API_HEALTH_URL = os.getenv("MODAL_API_HEALTH_URL", "https://zein1312004--sign-language-api-health.modal.run")
+
+# =============================================================================
 # CV MODEL WEBSOCKET URL (for real-time sign language recognition)
 # =============================================================================
 CV_MODEL_WS_URL = os.getenv("CV_MODEL_WS_URL")
@@ -102,6 +108,8 @@ if ENVIRONMENT == "PROD":
         "AI_TEXT_TO_GLOSS_BASE_URL": AI_TEXT_TO_GLOSS_BASE_URL,
         "AI_CV_BASE_URL": AI_CV_BASE_URL,
         "AI_STT_BASE_URL": AI_STT_BASE_URL,
+        "MODAL_API_PREDICT_URL": MODAL_API_PREDICT_URL,
+        "MODAL_API_HEALTH_URL": MODAL_API_HEALTH_URL,
     }.items():
         if not value:
             raise RuntimeError(f"{name} is required in PROD")

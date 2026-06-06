@@ -1,0 +1,75 @@
+import logging
+import httpx
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+class ModalPredictionClient:
+    """
+    Service responsible for calling the Modal Sign Language API.
+    """
+    
+    def __init__(self):
+        self.predict_url = getattr(settings, 'MODAL_API_PREDICT_URL', "https://zein1312004--sign-language-api-predict.modal.run")
+        self.health_url = getattr(settings, 'MODAL_API_HEALTH_URL', "https://zein1312004--sign-language-api-health.modal.run")
+        self.timeout = getattr(settings, 'MODAL_API_TIMEOUT', 15.0)
+
+    def check_health(self) -> bool:
+        """Check if the Modal API is healthy."""
+        try:
+            response = httpx.get(self.health_url, timeout=5.0)
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Modal API health check failed: {e}")
+            return False
+
+    def predict(self, sequence: list) -> dict:
+        """
+        Send a sequence of shape (96, 27, 3) to the Modal API.
+        
+        Expected request body:
+        { "sequence": [[[x,y,z], ...]] }
+        
+        Returns:
+        { "prediction": "اب", "confidence": 0.6178 }
+        """
+        # Request validation
+        if not sequence or not isinstance(sequence, list):
+            raise ValueError("Sequence must be a non-empty list.")
+        
+        if len(sequence) != 96:
+            raise ValueError(f"Sequence length must be exactly 96 frames. Got {len(sequence)}.")
+        
+        if len(sequence[0]) != 27:
+            raise ValueError(f"Each frame must contain exactly 27 landmarks. Got {len(sequence[0])}.")
+
+        try:
+            payload = {"sequence": sequence}
+            
+            response = httpx.post(
+                self.predict_url,
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            if "prediction" not in data or "confidence" not in data:
+                raise ValueError(f"Unexpected Modal API response format: {data}")
+                
+            return {
+                "prediction": data["prediction"],
+                "confidence": float(data["confidence"])
+            }
+            
+        except httpx.TimeoutException:
+            logger.error("Modal API prediction timed out.")
+            raise TimeoutError("Prediction request to Modal API timed out.")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Modal API prediction returned HTTP error: {e}")
+            raise RuntimeError(f"Modal API prediction failed with status {e.response.status_code}")
+        except Exception as e:
+            logger.error(f"Modal API prediction failed: {e}")
+            raise

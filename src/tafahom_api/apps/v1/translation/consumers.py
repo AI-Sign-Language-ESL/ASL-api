@@ -150,6 +150,13 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
             elif action == "stop":
                 await self.service.stop_translation("client_request")
 
+            elif action == "landmarks":
+                sequence = data.get("sequence")
+                if sequence:
+                    await self.service.on_landmarks(sequence)
+                else:
+                    await self.send_json({"type": "error", "message": "No sequence provided"})
+
             else:
                 await self.send_json({"type": "error", "message": "Unknown action"})
 

@@ -111,6 +111,22 @@ class StreamingTranslationService:
                 return
             self.frame_buffer.append(frame)
 
+    async def on_landmarks(self, sequence: list):
+        if not self.running:
+            return
+
+        # Unlike binary frames which are batched by the _ai_loop,
+        # we process the exactly 96-frame landmark sequence immediately.
+        try:
+            # We bypass the _process_batch logic, which is for binary frames,
+            # and directly call a new method on SignTranslationService for landmarks.
+            result = await self.sign_service.translate_landmarks(sequence, self.session_id)
+            if result and result.success:
+                self.partial_text_buffer.append(result.text)
+        except Exception as e:
+            logger.error(f"Error processing landmarks: {e}")
+            await self.send_json({"type": "error", "message": "Failed to process landmarks"})
+
     async def on_ping(self):
         self.last_heartbeat = time.time()
         await self.send_json({"type": "pong"})

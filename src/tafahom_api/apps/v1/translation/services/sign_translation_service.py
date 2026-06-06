@@ -253,6 +253,68 @@ class SignTranslationService:
             nlp_retries=nlp_retries,
         )
 
+    async def translate_landmarks(
+        self, sequence: list, session_id: Optional[str] = None
+    ) -> TranslationPipelineResult:
+        """
+        Run the full CV → NLP translation pipeline on a sequence of landmarks.
+        """
+        request_id = session_id or f"trl_{int(time.time() * 1000)}"
+        overall_start = time.perf_counter()
+        cv_latency: Optional[float] = None
+        nlp_latency: Optional[float] = None
+
+        if not sequence:
+            return TranslationPipelineResult(
+                gloss="", text="", success=False, error="No sequence provided"
+            )
+
+        try:
+            await self._emit_event("translation_started", {"request_id": request_id})
+        except Exception:
+            pass
+
+        cv_start = time.perf_counter()
+        cv_result = await self._call_cv_landmarks_with_retry(sequence, request_id)
+        cv_latency = (time.perf_counter() - cv_start) * 1000
+
+        gloss = cv_result.gloss
+        gloss_upper = gloss.strip().upper()
+
+        try:
+            await self._emit_event(
+                "gloss_received", {"request_id": request_id, "gloss": gloss_upper}
+            )
+        except Exception:
+            pass
+
+        nlp_start = time.perf_counter()
+        nlp_result = await self._call_nlp_with_retry(gloss_upper, request_id)
+        nlp_latency = (time.perf_counter() - nlp_start) * 1000
+
+        text = nlp_result.text
+
+        total_latency = (time.perf_counter() - overall_start) * 1000
+
+        try:
+            await self._emit_event(
+                "translation_received",
+                {"request_id": request_id, "gloss": gloss_upper, "text": text},
+            )
+        except Exception:
+            pass
+
+        return TranslationPipelineResult(
+            gloss=gloss_upper,
+            text=text,
+            success=True,
+            cv_latency_ms=round(cv_latency, 2),
+            nlp_latency_ms=round(nlp_latency, 2),
+            total_latency_ms=round(total_latency, 2),
+            cv_retries=0,
+            nlp_retries=0,
+        )
+
     async def _call_cv_with_retry(
         self, video_chunk: bytes, request_id: str
     ) -> CVResponse:
@@ -291,6 +353,40 @@ class SignTranslationService:
                     "stage": "cv",
                     "error": str(exc),
                 },
+            )
+            raise
+
+    async def _call_cv_landmarks_with_retry(
+        self, sequence: list, request_id: str
+    ) -> CVResponse:
+        timeout = self.config.cv_timeout
+
+        async def _cv_flow():
+            if hasattr(self.cv_client, "send_landmarks"):
+                await self.cv_client.send_landmarks(sequence)
+            else:
+                raise NotImplementedError("CV client does not support landmarks")
+            return await self.cv_client.receive_gloss()
+
+        try:
+            result = await self.retry_handler.execute(
+                _cv_flow,
+                service_name="CV_Landmarks",
+                timeout=timeout,
+            )
+            if isinstance(result, CVResponse):
+                return result
+            if isinstance(result, dict):
+                gloss = result.get("gloss", "")
+                if not gloss:
+                    raise ValueError("CV returned empty gloss")
+                return CVResponse(gloss=gloss, raw=result)
+            return CVResponse(gloss="")
+        except Exception as exc:
+            logger.error(f"cv_landmarks_failed: {exc}")
+            await self._emit_event(
+                "translation_error",
+                {"request_id": request_id, "stage": "cv", "error": str(exc)},
             )
             raise
 

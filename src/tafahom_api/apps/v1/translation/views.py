@@ -633,3 +633,63 @@ class MockCVEndpointView(APIView):
             {"gloss": "سبب رغبه شراء"},
             status=status.HTTP_200_OK
         )
+
+
+# =====================================================
+# 🧠 MODAL PREDICTION ENDPOINT
+# =====================================================
+
+class ModalPredictView(APIView):
+    """
+    Receives landmark sequences from the frontend and calls the Modal Prediction API.
+    POST /api/v1/translation/predict-modal/
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=5, min_plan="free", feature_name="Modal Prediction")
+    def post(self, request):
+        sequence = request.data.get("sequence")
+        
+        if not sequence:
+            return Response(
+                {"error": "Landmark sequence is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from tafahom_api.apps.v1.translation.services.modal_client import ModalPredictionClient
+        client = ModalPredictionClient()
+        
+        try:
+            result = client.predict(sequence)
+            gloss = result["prediction"]
+            
+            # Translate predicted gloss into a natural Arabic sentence using the NLP models
+            translation_text = gloss
+            try:
+                from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
+                nlp_client = NLPModelClient()
+                nlp_res = asyncio.run(nlp_client.translate_gloss(gloss))
+                translation_text = nlp_res.text
+            except Exception as nlp_err:
+                logger.error("NLP translation failed for predicted gloss '%s': %s", gloss, nlp_err)
+            
+            # Consume tokens on success
+            subscription = request.subscription
+            with transaction.atomic():
+                consume_translation_token(subscription)
+                # optionally log translation request to database if needed
+
+            return Response({
+                "prediction": gloss,
+                "confidence": result["confidence"],
+                "translation": translation_text,
+                "remaining_tokens": subscription.remaining_tokens(),
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as ve:
+            return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+        except TimeoutError:
+            return Response({"error": "Prediction service timed out."}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+        except Exception as e:
+            logger.exception("Modal Prediction failed")
+            return Response({"error": "Internal server error during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

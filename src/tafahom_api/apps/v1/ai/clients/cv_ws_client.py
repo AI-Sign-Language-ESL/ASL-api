@@ -144,8 +144,74 @@ class MockCVClient(CVModelClient):
     async def disconnect(self):
         logger.info("MockCVClient disconnected.")
 
+
+class CVModalRESTClient(CVModelClient):
+    """
+    Adapter that integrates the Modal Prediction REST API into the CV pipeline.
+    Accepts landmark sequences instead of video chunks.
+    """
+    def __init__(self):
+        self.predict_url = getattr(settings, 'MODAL_API_PREDICT_URL', "https://zein1312004--sign-language-api-predict.modal.run")
+        self.timeout = getattr(settings, 'MODAL_API_TIMEOUT', 15.0)
+        self._pending_sequence = None
+
+    async def connect(self):
+        pass
+
+    async def disconnect(self):
+        pass
+
+    async def send_video_chunk(self, video_chunk: bytes):
+        """Not used in Modal pipeline, but required by interface. Use send_landmarks instead."""
+        pass
+        
+    async def send_landmarks(self, sequence: list):
+        """Specific method to queue landmarks for the next receive_gloss call."""
+        self._pending_sequence = sequence
+
+    async def receive_gloss(self) -> CVResponse:
+        if not self._pending_sequence:
+            raise ValueError("No landmarks sequence provided for Modal API prediction.")
+
+        import httpx
+        start = time.perf_counter()
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    self.predict_url,
+                    json={"sequence": self._pending_sequence}
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "prediction" not in data:
+                    raise ValueError(f"Modal API missing 'prediction' in response: {data}")
+
+                gloss = data["prediction"]
+                latency = (time.perf_counter() - start) * 1000
+
+                logger.info(
+                    "cv_modal_success",
+                    extra={
+                        "gloss": gloss,
+                        "latency_ms": round(latency, 2),
+                    },
+                )
+                
+                self._pending_sequence = None
+                return CVResponse(gloss=gloss, raw=data)
+                
+        except httpx.TimeoutException:
+            raise TimeoutError("Modal API prediction timed out")
+        except Exception as e:
+            logger.error(f"Error receiving prediction from Modal API: {e}")
+            raise
+
+
 def get_cv_client() -> CVModelClient:
     """Factory to return the appropriate CV client based on settings."""
     if getattr(settings, "MOCK_CV", False):
         return MockCVClient()
+    if getattr(settings, "MODAL_API_PREDICT_URL", None):
+        return CVModalRESTClient()
     return CVWebSocketClient()
