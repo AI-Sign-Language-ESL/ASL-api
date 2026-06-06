@@ -24,6 +24,13 @@ from tafahom_api.apps.v1.ai.routing import websocket_urlpatterns as ai_ws
 # 🔹 Combine all websocket routes
 websocket_urlpatterns = translation_ws + meetings_ws + ai_ws
 
+# 🔹 Startup logging — verify routes at runtime
+import logging
+_log = logging.getLogger("tafahom_api.asgi")
+_log.info("Registered WebSocket routes:")
+for r in websocket_urlpatterns:
+    _log.info("  • %s → %s", r.pattern, r.callback.__name__ if hasattr(r.callback, "__name__") else type(r.callback).__name__)
+
 
 # ✅ FINAL APPLICATION
 application = ProtocolTypeRouter({
