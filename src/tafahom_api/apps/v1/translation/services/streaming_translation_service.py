@@ -144,9 +144,11 @@ class StreamingTranslationService:
             await self.close_ws(code=4011)
             return
 
-        subscription = getattr(self.user, "subscription", None)
-        has_token = await database_sync_to_async(
-            lambda: subscription and subscription.can_consume(5)
+        subscription = await database_sync_to_async(
+            lambda: getattr(self.user, "subscription", None)
+        )()
+        has_token = subscription and await database_sync_to_async(
+            lambda: subscription.can_consume(5)
         )()
 
         if not has_token:
