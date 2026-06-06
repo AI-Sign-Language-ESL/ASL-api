@@ -29,8 +29,15 @@ class NLPModelClient(BaseAIClient):
             raise ValueError(f"Base URL for {model_name} is not configured.")
         url = f"{base_url.rstrip('/')}/translate"
         start_time = time.perf_counter()
-        
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+
+        timeout = httpx.Timeout(
+            connect=30.0,
+            read=120.0,
+            write=30.0,
+            pool=30.0,
+        )
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 response = await client.post(
                     url,
@@ -40,16 +47,16 @@ class NLPModelClient(BaseAIClient):
                 response.raise_for_status()
                 data = response.json()
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
-                
+
                 text = data.get("text", "") or data.get("translation", "") or data.get("gloss_translation", "")
                 if not text:
                     raise ValueError(f"{model_name} returned empty text")
-                    
+
                 return {
                     "model": model_name,
                     "text": text,
                     "latency_ms": latency_ms,
-                    "raw": data
+                    "raw": data,
                 }
             except Exception as e:
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -119,7 +126,7 @@ class NLPModelClient(BaseAIClient):
 
         while pending:
             done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-            
+
             for task in done:
                 try:
                     result = task.result()
@@ -127,8 +134,13 @@ class NLPModelClient(BaseAIClient):
                         winner_result = result
                 except Exception as e:
                     logger.warning("A model failed: %s", e)
-            
+
             if winner_result:
+                # Cancel remaining pending tasks
+                for t in pending:
+                    t.cancel()
+                if pending:
+                    await asyncio.wait(pending, timeout=5)
                 break
 
         if not winner_result:

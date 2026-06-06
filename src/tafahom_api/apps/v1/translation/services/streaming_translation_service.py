@@ -57,6 +57,7 @@ class StreamingTranslationService:
         self.last_sent = time.time()
 
         self.task: asyncio.Task | None = None
+        self._bg_tasks: set[asyncio.Task] = set()
 
         pipeline_config = PipelineConfig(
             send_interval=config.get("SEND_INTERVAL", 5),
@@ -91,6 +92,12 @@ class StreamingTranslationService:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self.task
+
+        for t in list(self._bg_tasks):
+            t.cancel()
+        if self._bg_tasks:
+            await asyncio.wait(self._bg_tasks, timeout=5)
+        self._bg_tasks.clear()
 
         if self.translation:
             await self._finalize_translation()
@@ -313,7 +320,9 @@ class StreamingTranslationService:
 
         # 2) Fetch ElevenLabs audio in background — send when ready to upgrade quality
         if final_text:
-            asyncio.create_task(self._send_elevenlabs_audio(final_text))
+            t = asyncio.create_task(self._send_elevenlabs_audio(final_text))
+            self._bg_tasks.add(t)
+            t.add_done_callback(self._bg_tasks.discard)
 
     async def _send_elevenlabs_audio(self, text: str):
         """Fetch ElevenLabs audio and push it to the client as a follow-up event."""

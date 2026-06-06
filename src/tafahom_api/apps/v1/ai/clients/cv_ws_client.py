@@ -195,6 +195,7 @@ class CVModalRESTClient(CVModelClient):
                     extra={
                         "gloss": gloss,
                         "latency_ms": round(latency, 2),
+                        "response": data,
                     },
                 )
                 
