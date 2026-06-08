@@ -127,22 +127,7 @@ class CVWebSocketClient(CVModelClient):
             logger.info("Disconnected from CV model WebSocket.")
 
 
-class MockCVClient(CVModelClient):
-    """Mock CV Client for Test Mode (Phase 7)."""
-    
-    async def connect(self):
-        logger.info("MockCVClient connected.")
-        
-    async def send_video_chunk(self, video_chunk: bytes):
-        # Simulate processing time
-        await asyncio.sleep(0.1)
-        
-    async def receive_gloss(self, sequence: Optional[list] = None) -> CVResponse:
-        # Mock response as requested
-        return CVResponse(gloss="سبب رغبه شراء", raw={"gloss": "سبب رغبه شراء", "mock": True})
-        
-    async def disconnect(self):
-        logger.info("MockCVClient disconnected.")
+
 
 
 class CVModalRESTClient(CVModelClient):
@@ -205,8 +190,6 @@ class CVModalRESTClient(CVModelClient):
 
 def get_cv_client() -> CVModelClient:
     """Factory to return the appropriate CV client based on settings."""
-    if getattr(settings, "MOCK_CV", False):
-        return MockCVClient()
     if getattr(settings, "MODAL_API_PREDICT_URL", None):
         return CVModalRESTClient()
     return CVWebSocketClient()

@@ -1,6 +1,7 @@
 import json
 import time
 import logging
+import uuid
 from collections import deque
 
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -41,6 +42,8 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
         # AUTH (FROM JWT MIDDLEWARE)
         # -----------------------------
         self.user = self.scope.get("user")
+        self.connection_id = str(uuid.uuid4())[:8]
+        logger.info(f"[WS] Client connecting. Connection ID: {self.connection_id}")
 
         if not self.user or getattr(self.user, "is_anonymous", True):
             await self.close(code=4001)
@@ -75,16 +78,19 @@ class SignTranslationConsumer(AsyncWebsocketConsumer):
 
         try:
             await self.service.start()
+            logger.info(f"[WS] Connection ID: {self.connection_id} successfully started.")
         except Exception:
-            logger.exception("StreamingTranslationService failed to start")
+            logger.exception(f"[WS] Connection ID: {self.connection_id} failed to start service.")
             await self.close(code=1011)
 
     async def disconnect(self, close_code):
+        logger.info(f"[WS] Connection ID: {self.connection_id} disconnecting with code: {close_code}")
         if hasattr(self, "service"):
             try:
                 await self.service.shutdown()
+                logger.info(f"[WS] Connection ID: {self.connection_id} shutdown complete.")
             except Exception:
-                logger.exception("Error during service shutdown")
+                logger.exception(f"[WS] Connection ID: {self.connection_id} error during shutdown.")
 
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data and not bytes_data:

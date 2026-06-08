@@ -42,6 +42,18 @@ class PredictionStabilizer:
         # This prevents permanent deadlock when the user signs the same word twice.
         self._reset_after_rejections = 5
 
+    def clear(self):
+        self.prediction_history.clear()
+        self.last_accepted_prediction = None
+        self._rejections_since_last_accept = 0
+        logger.info("stabilizer: cleared state")
+
+    def get_state(self):
+        return {
+            "history_length": len(self.prediction_history),
+            "last_accepted": self.last_accepted_prediction
+        }
+
     def process(self, prediction: str, confidence: float) -> Optional[str]:
         if not prediction:
             return None

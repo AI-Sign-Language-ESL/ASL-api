@@ -170,6 +170,10 @@ class StreamingTranslationService:
         # Voice is generated ONLY after STOP
         self.translation = await self._create_translation("text")
 
+        # Clear stabilizer state from any potential prior session
+        if hasattr(self.sign_service, "stabilizer"):
+            self.sign_service.stabilizer.clear()
+
         self.requests_count += 1
         self.running = True
         self.last_sent = time.time()
@@ -177,6 +181,13 @@ class StreamingTranslationService:
 
         async with self.buffer_lock:
             self.frame_buffer.clear()
+
+        logger.info(
+            f"[START] Session ID: {self.session_id} | "
+            f"Buffer: {len(self.frame_buffer)} | "
+            f"Stabilizer state: {self.sign_service.stabilizer.get_state()} | "
+            f"Bg Tasks: {len(self._bg_tasks)}"
+        )
 
         await self.send_json(
             {
@@ -195,7 +206,18 @@ class StreamingTranslationService:
         async with self.buffer_lock:
             self.frame_buffer.clear()
 
+        if hasattr(self.sign_service, "stabilizer"):
+            self.sign_service.stabilizer.clear()
+
         await self._finalize_translation()
+
+        logger.info(
+            f"[STOP] Session ID: {self.session_id} | "
+            f"Buffer: {len(self.frame_buffer)} | "
+            f"Stabilizer state: {self.sign_service.stabilizer.get_state()} | "
+            f"Bg Tasks: {len(self._bg_tasks)}"
+        )
+
         await self.send_json({"type": "status", "status": "stopped"})
 
     # --------------------------------------------------

@@ -615,25 +615,6 @@ class SaveTranslationHistoryView(APIView):
             status=status.HTTP_200_OK,
         )
 
-# =====================================================
-# 🧪 MOCK CV ENDPOINT (Phase 7 Test Mode)
-# =====================================================
-
-class MockCVEndpointView(APIView):
-    """
-    Mock CV Endpoint for testing the Translation Pipeline.
-    POST /api/v1/translation/mock-cv/
-    
-    Returns the mocked gloss payload.
-    """
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        return Response(
-            {"gloss": "سبب رغبه شراء"},
-            status=status.HTTP_200_OK
-        )
-
 
 # =====================================================
 # 🧠 MODAL PREDICTION ENDPOINT
