@@ -128,7 +128,9 @@ class StreamingTranslationService:
             # We bypass the _process_batch logic, which is for binary frames,
             # and directly call a new method on SignTranslationService for landmarks.
             result = await self.sign_service.translate_landmarks(sequence, self.session_id)
-            if result and result.success:
+
+            # Guard: skip if the stabilizer rejected the prediction (empty gloss/text)
+            if result and result.success and result.gloss and result.text:
                 self.partial_text_buffer.append(result.text)
         except Exception as e:
             logger.error(f"Error processing landmarks: {e}")

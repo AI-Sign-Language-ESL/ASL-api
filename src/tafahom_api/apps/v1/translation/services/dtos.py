@@ -11,6 +11,7 @@ class CVRequest:
 class CVResponse:
     gloss: str
     raw: Optional[dict] = None
+    confidence: Optional[float] = None
 
 
 @dataclass

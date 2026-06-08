@@ -29,7 +29,7 @@ class CVModelClient(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def receive_gloss(self) -> CVResponse:
+    async def receive_gloss(self, sequence: Optional[list] = None) -> CVResponse:
         """Receive the next gloss from the CV model."""
         pass
 
@@ -83,7 +83,7 @@ class CVWebSocketClient(CVModelClient):
             self.ws = None
             raise
 
-    async def receive_gloss(self) -> CVResponse:
+    async def receive_gloss(self, sequence: Optional[list] = None) -> CVResponse:
         if not self.ws:
             raise ConnectionError("CV WebSocket is not connected.")
         
@@ -137,7 +137,7 @@ class MockCVClient(CVModelClient):
         # Simulate processing time
         await asyncio.sleep(0.1)
         
-    async def receive_gloss(self) -> CVResponse:
+    async def receive_gloss(self, sequence: Optional[list] = None) -> CVResponse:
         # Mock response as requested
         return CVResponse(gloss="سبب رغبه شراء", raw={"gloss": "سبب رغبه شراء", "mock": True})
         
@@ -153,7 +153,6 @@ class CVModalRESTClient(CVModelClient):
     def __init__(self):
         self.predict_url = getattr(settings, 'MODAL_API_PREDICT_URL', "https://zein1312004--sign-language-api-predict.modal.run")
         self.timeout = getattr(settings, 'MODAL_API_TIMEOUT', 15.0)
-        self._pending_sequence = None
 
     async def connect(self):
         pass
@@ -162,15 +161,11 @@ class CVModalRESTClient(CVModelClient):
         pass
 
     async def send_video_chunk(self, video_chunk: bytes):
-        """Not used in Modal pipeline, but required by interface. Use send_landmarks instead."""
+        """Not used in Modal pipeline, but required by interface. Use receive_gloss with sequence instead."""
         pass
-        
-    async def send_landmarks(self, sequence: list):
-        """Specific method to queue landmarks for the next receive_gloss call."""
-        self._pending_sequence = sequence
 
-    async def receive_gloss(self) -> CVResponse:
-        if not self._pending_sequence:
+    async def receive_gloss(self, sequence: Optional[list] = None) -> CVResponse:
+        if not sequence:
             raise ValueError("No landmarks sequence provided for Modal API prediction.")
 
         import httpx
@@ -179,7 +174,7 @@ class CVModalRESTClient(CVModelClient):
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
                     self.predict_url,
-                    json={"sequence": self._pending_sequence}
+                    json={"sequence": sequence}
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -199,8 +194,7 @@ class CVModalRESTClient(CVModelClient):
                     },
                 )
                 
-                self._pending_sequence = None
-                return CVResponse(gloss=gloss, raw=data)
+                return CVResponse(gloss=gloss, raw=data, confidence=float(data.get("confidence", 0.0)))
                 
         except httpx.TimeoutException:
             raise TimeoutError("Modal API prediction timed out")

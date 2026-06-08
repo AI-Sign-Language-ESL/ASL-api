@@ -8,7 +8,10 @@ MAX_BUFFER_SIZE = 120
 MAX_BATCH_FRAMES = 30
 
 MAX_FRAMES_PER_REQUEST = 64
-MAX_REQUESTS_PER_SESSION = 5
+# Each call to `start_translation` via action:"start" counts as one request.
+# The frontend sends this on every WebSocket connect (including reconnects).
+# A low value here permanently silences the session after N reconnects.
+MAX_REQUESTS_PER_SESSION = 100
 PIPELINE_TIMEOUT_SECONDS = 15
 
 HEARTBEAT_TIMEOUT = 30

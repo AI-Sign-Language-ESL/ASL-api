@@ -27,6 +27,64 @@ from tafahom_api.apps.v1.translation.sign_map import ANIMATION_MAP, SIGN_MAP, SY
 
 logger = logging.getLogger(__name__)
 
+class PredictionStabilizer:
+    """
+    Stabilizes real-time model predictions by enforcing confidence thresholds
+    and consecutive frame consistency.
+    """
+    def __init__(self, confidence_threshold=0.6, consistency_frames=2):
+        self.confidence_threshold = confidence_threshold
+        self.consistency_frames = consistency_frames
+        self.prediction_history = []
+        self.last_accepted_prediction = None
+        self._rejections_since_last_accept = 0
+        # After this many rejected frames (different prediction), allow the same sign again.
+        # This prevents permanent deadlock when the user signs the same word twice.
+        self._reset_after_rejections = 5
+
+    def process(self, prediction: str, confidence: float) -> Optional[str]:
+        if not prediction:
+            return None
+            
+        # 1. Ignore low confidence predictions
+        if confidence < self.confidence_threshold:
+            logger.debug("stabilizer: rejected '%s' confidence=%.2f < %.2f",
+                         prediction, confidence, self.confidence_threshold)
+            return None
+            
+        # 2. If this is the same sign as the last accepted one, track rejections.
+        # After enough different frames have passed, clear last_accepted so the
+        # sign can be recognized again (e.g., signing the same word twice).
+        if prediction == self.last_accepted_prediction:
+            self._rejections_since_last_accept += 1
+            if self._rejections_since_last_accept >= self._reset_after_rejections:
+                logger.debug("stabilizer: resetting last_accepted after %d rejections",
+                             self._rejections_since_last_accept)
+                self.last_accepted_prediction = None
+                self._rejections_since_last_accept = 0
+                self.prediction_history.clear()
+            return None
+        else:
+            # Different prediction — reset the repeat-rejection counter
+            self._rejections_since_last_accept = 0
+
+        # 3. Add to sliding window
+        self.prediction_history.append(prediction)
+
+        # 4. Require N consecutive identical predictions
+        if len(self.prediction_history) >= self.consistency_frames:
+            recent = self.prediction_history[-self.consistency_frames:]
+            if all(p == prediction for p in recent):
+                logger.info("stabilizer: accepted '%s' confidence=%.2f", prediction, confidence)
+                self.last_accepted_prediction = prediction
+                self._rejections_since_last_accept = 0
+                self.prediction_history.clear()
+                return prediction
+            
+            self.prediction_history.pop(0)
+
+        return None
+
 
 class RetryHandler:
     """
@@ -134,6 +192,7 @@ class SignTranslationService:
         )
         self.config = config or PipelineConfig()
         self.event_callback = event_callback
+        self.stabilizer = PredictionStabilizer(confidence_threshold=0.6, consistency_frames=2)
 
     async def initialize(self):
         """Called to initialize any persistent connections."""
@@ -278,7 +337,18 @@ class SignTranslationService:
         cv_result = await self._call_cv_landmarks_with_retry(sequence, request_id)
         cv_latency = (time.perf_counter() - cv_start) * 1000
 
-        gloss = cv_result.gloss
+        raw_gloss = cv_result.gloss
+        confidence = cv_result.confidence or 1.0  # Fallback if no confidence provided
+        
+        # Stabilize prediction
+        gloss = self.stabilizer.process(raw_gloss, confidence)
+        
+        if not gloss:
+            # Prediction ignored due to low confidence or waiting for consistency
+            return TranslationPipelineResult(
+                gloss="", text="", success=True, cv_latency_ms=round(cv_latency, 2), nlp_latency_ms=0, total_latency_ms=round(cv_latency, 2)
+            )
+
         gloss_upper = gloss.strip().upper()
 
         try:
@@ -362,11 +432,10 @@ class SignTranslationService:
         timeout = self.config.cv_timeout
 
         async def _cv_flow():
-            if hasattr(self.cv_client, "send_landmarks"):
-                await self.cv_client.send_landmarks(sequence)
+            if hasattr(self.cv_client, "receive_gloss"):
+                return await self.cv_client.receive_gloss(sequence=sequence)
             else:
-                raise NotImplementedError("CV client does not support landmarks")
-            return await self.cv_client.receive_gloss()
+                raise NotImplementedError("CV client does not support passing sequence to receive_gloss")
 
         try:
             result = await self.retry_handler.execute(
@@ -374,14 +443,8 @@ class SignTranslationService:
                 service_name="CV_Landmarks",
                 timeout=timeout,
             )
-            if isinstance(result, CVResponse):
-                return result
-            if isinstance(result, dict):
-                gloss = result.get("gloss", "")
-                if not gloss:
-                    raise ValueError("CV returned empty gloss")
-                return CVResponse(gloss=gloss, raw=result)
-            return CVResponse(gloss="")
+            # receive_gloss always returns CVResponse; no need for isinstance fallbacks
+            return result
         except Exception as exc:
             logger.error(f"cv_landmarks_failed: {exc}")
             await self._emit_event(
