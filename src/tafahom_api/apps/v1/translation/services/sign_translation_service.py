@@ -204,7 +204,7 @@ class SignTranslationService:
         )
         self.config = config or PipelineConfig()
         self.event_callback = event_callback
-        self.stabilizer = PredictionStabilizer(confidence_threshold=0.6, consistency_frames=2)
+        self.stabilizer = PredictionStabilizer(confidence_threshold=0.6, consistency_frames=1)
 
     async def initialize(self):
         """Called to initialize any persistent connections."""
@@ -431,10 +431,24 @@ class SignTranslationService:
         # Stabilize prediction
         gloss = self.stabilizer.process(raw_gloss, confidence)
         
-        if not gloss:
-            # Prediction ignored due to low confidence or waiting for consistency
+        if not gloss or gloss == "NO_SIGN":
+            # In discrete word-based translation, we must send a fallback response to avoid blocking the UI
+            try:
+                await self._emit_event(
+                    "translation_received",
+                    {"request_id": request_id, "gloss": "NO_SIGN", "text": "No Sign Detected"},
+                )
+            except Exception:
+                pass
             return TranslationPipelineResult(
-                gloss="", text="", success=True, cv_latency_ms=round(cv_latency, 2), nlp_latency_ms=0, total_latency_ms=round(cv_latency, 2)
+                gloss="NO_SIGN",
+                text="No Sign Detected",
+                success=True,
+                cv_latency_ms=round(cv_latency, 2),
+                nlp_latency_ms=0,
+                total_latency_ms=round(cv_latency, 2),
+                cv_retries=0,
+                nlp_retries=0,
             )
 
         gloss_upper = gloss.strip().upper()

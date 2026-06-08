@@ -153,7 +153,42 @@ class CVModalRESTClient(CVModelClient):
         if not sequence:
             raise ValueError("No landmarks sequence provided for Modal API prediction.")
 
+        import numpy as np
         import httpx
+
+        # Validate and log sequence statistics
+        arr = np.array(sequence, dtype=np.float32)
+        shape = arr.shape
+        nonzero = int(np.count_nonzero(arr))
+        mean = float(np.mean(arr))
+        std = float(np.std(arr))
+
+        logger.info(
+            f"WS Predict sequence validation: shape={shape}, nonzero={nonzero}, mean={mean:.4f}, std={std:.4f}"
+        )
+
+        # Hands check: Left hand [7:17], Right hand [17:27]
+        left_hand = arr[:, 7:17, :]
+        right_hand = arr[:, 17:27, :]
+        has_left = np.any(left_hand != 0, axis=(1, 2))
+        has_right = np.any(right_hand != 0, axis=(1, 2))
+        has_hand = has_left | has_right
+        frames_with_hands = int(np.sum(has_hand))
+
+        # Check validation thresholds:
+        # 1. No hands detected for most frames (less than 48 of the 96 frames)
+        # 2. Non-zero count below 3000
+        # 3. Low movement / static sequence (std < 0.05)
+        if frames_with_hands < 48 or nonzero < 3000 or std < 0.05:
+            logger.warning(
+                f"WS Sequence rejected by validation: frames_with_hands={frames_with_hands}/96, nonzero={nonzero}, std={std:.4f}"
+            )
+            return CVResponse(
+                gloss="NO_SIGN",
+                confidence=0.0,
+                raw={"prediction": "NO_SIGN", "confidence": 0.0}
+            )
+
         start = time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
