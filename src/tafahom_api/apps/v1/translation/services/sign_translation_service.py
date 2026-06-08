@@ -376,6 +376,18 @@ class SignTranslationService:
         except Exception as diag_err:
             logger.warning(f"Sequence diagnostic failed: {diag_err}")
 
+        # DIAGNOSTIC: Save sequence to .npy file for direct comparison
+        try:
+            import os
+            import numpy as np
+            save_dir = os.path.join(settings.BASE_DIR, "sequence_logs")
+            os.makedirs(save_dir, exist_ok=True)
+            npy_path = os.path.join(save_dir, f"seq_{request_id}.npy")
+            np.save(npy_path, np.array(sequence, dtype=np.float32))
+            logger.info(f"Saved incoming sequence to {npy_path} for comparison.")
+        except Exception as e:
+            logger.error(f"Failed to save sequence to .npy: {e}")
+
         try:
             await self._emit_event("translation_started", {"request_id": request_id})
         except Exception:
