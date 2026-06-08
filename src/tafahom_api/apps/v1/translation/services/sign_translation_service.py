@@ -317,7 +317,10 @@ class SignTranslationService:
     ) -> TranslationPipelineResult:
         """
         Run the full CV → NLP translation pipeline on a sequence of landmarks.
+        Includes comprehensive diagnostic logging to compare production vs training input.
         """
+        import numpy as np
+
         request_id = session_id or f"trl_{int(time.time() * 1000)}"
         overall_start = time.perf_counter()
         cv_latency: Optional[float] = None
@@ -327,6 +330,51 @@ class SignTranslationService:
             return TranslationPipelineResult(
                 gloss="", text="", success=False, error="No sequence provided"
             )
+
+        # -------------------------------------------------------
+        # DIAGNOSTIC: Validate and log sequence statistics.
+        # Compare these numbers against your LOCAL training data.
+        # If the numbers differ, that is your root cause.
+        # -------------------------------------------------------
+        try:
+            arr = np.array(sequence, dtype=np.float32)
+            n_frames, n_landmarks, n_coords = arr.shape if arr.ndim == 3 else (len(sequence), -1, -1)
+            flat = arr.flatten()
+
+            # Count frames that have at least one non-zero landmark
+            frames_with_data = int(np.any(arr.reshape(n_frames, -1) != 0, axis=1).sum())
+            zero_frames = n_frames - frames_with_data
+            non_zero_values = int(np.count_nonzero(flat))
+
+            logger.info(
+                "sequence_diagnostic",
+                extra={
+                    "request_id": request_id,
+                    "shape": [n_frames, n_landmarks, n_coords],
+                    "frames_with_data": frames_with_data,
+                    "zero_frames": zero_frames,        # ← HIGH if MediaPipe not detecting
+                    "non_zero_values": non_zero_values,
+                    "min": round(float(flat.min()), 4),
+                    "max": round(float(flat.max()), 4),
+                    "mean": round(float(flat.mean()), 4),
+                    "std": round(float(flat.std()), 4),
+                    # Training data reference (screen-space coords): min≈0, max≈1, mean≈0.3-0.6
+                    # If mean ≈ 0 and std ≈ 0, MediaPipe is not detecting anything.
+                }
+            )
+
+            if zero_frames > 48:  # More than half the sequence is empty
+                logger.warning(
+                    "sequence_mostly_empty",
+                    extra={
+                        "request_id": request_id,
+                        "zero_frames": zero_frames,
+                        "msg": "MediaPipe likely not detecting landmarks. Check camera/lighting."
+                    }
+                )
+
+        except Exception as diag_err:
+            logger.warning(f"Sequence diagnostic failed: {diag_err}")
 
         try:
             await self._emit_event("translation_started", {"request_id": request_id})
@@ -338,8 +386,24 @@ class SignTranslationService:
         cv_latency = (time.perf_counter() - cv_start) * 1000
 
         raw_gloss = cv_result.gloss
-        confidence = cv_result.confidence or 1.0  # Fallback if no confidence provided
-        
+
+        # BUG FIX: `cv_result.confidence or 1.0` is wrong in Python.
+        # If confidence=0.0 (falsy), the expression evaluates to 1.0,
+        # bypassing the stabilizer threshold entirely.
+        # Correct fix: use `is not None` check.
+        confidence = cv_result.confidence if cv_result.confidence is not None else 1.0
+
+        logger.info(
+            "cv_raw_prediction",
+            extra={
+                "request_id": request_id,
+                "raw_gloss": raw_gloss,
+                "confidence": round(confidence, 4),
+                "threshold": self.stabilizer.confidence_threshold,
+                "passes_threshold": confidence >= self.stabilizer.confidence_threshold,
+            }
+        )
+
         # Stabilize prediction
         gloss = self.stabilizer.process(raw_gloss, confidence)
         
