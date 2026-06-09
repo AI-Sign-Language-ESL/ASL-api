@@ -644,26 +644,14 @@ class ModalPredictView(APIView):
             result = client.predict(sequence)
             gloss = result["prediction"]
             
-            # Translate predicted gloss into a natural Arabic sentence using the NLP models
-            translation_text = gloss
-            try:
-                from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
-                nlp_client = NLPModelClient()
-                nlp_res = asyncio.run(nlp_client.translate_gloss(gloss))
-                translation_text = nlp_res.text
-            except Exception as nlp_err:
-                logger.error("NLP translation failed for predicted gloss '%s': %s", gloss, nlp_err)
-            
             # Consume tokens on success
             subscription = request.subscription
             with transaction.atomic():
                 consume_translation_token(subscription)
-                # optionally log translation request to database if needed
 
             return Response({
                 "prediction": gloss,
                 "confidence": result["confidence"],
-                "translation": translation_text,
                 "remaining_tokens": subscription.remaining_tokens(),
             }, status=status.HTTP_200_OK)
             
@@ -674,3 +662,46 @@ class ModalPredictView(APIView):
         except Exception as e:
             logger.exception("Modal Prediction failed")
             return Response({"error": "Internal server error during prediction."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# =====================================================
+# 🌐 TRANSLATE GLOSS ENDPOINT (SESSION LEVEL NLP)
+# =====================================================
+
+class TranslateGlossView(APIView):
+    """
+    Receives a full gloss string and calls the NLP model to return natural Arabic text.
+    POST /api/v1/sign-language/translate-gloss/
+    """
+    permission_classes = [IsAuthenticated]
+
+    @require_token_and_plan(token_cost=5, min_plan="free", feature_name="Gloss Translation")
+    def post(self, request):
+        gloss = request.data.get("gloss")
+        
+        if not gloss or not gloss.strip():
+            return Response(
+                {"error": "Gloss sequence is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
+            nlp_client = NLPModelClient()
+            nlp_res = asyncio.run(nlp_client.translate_gloss(gloss))
+            translation_text = nlp_res.text
+            
+            # Consume tokens on success
+            subscription = request.subscription
+            with transaction.atomic():
+                consume_translation_token(subscription)
+
+            return Response({
+                "text": translation_text,
+                "remaining_tokens": subscription.remaining_tokens(),
+            }, status=status.HTTP_200_OK)
+            
+        except TimeoutError:
+            return Response({"error": "NLP service timed out."}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+        except Exception as e:
+            logger.exception("NLP translation failed")
+            return Response({"error": "Internal server error during NLP translation."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

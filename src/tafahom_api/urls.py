@@ -6,13 +6,14 @@ from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.views.static import serve
 
-from tafahom_api.apps.v1.translation.views import TestGlossView, ModalPredictView
+from tafahom_api.apps.v1.translation.views import TestGlossView, ModalPredictView, TranslateGlossView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include("tafahom_api.apps.v1.urls")),
     path("api/v1/health/", include("tafahom_api.apps.v1.health.urls")),
     path("api/v1/sign-language/test-gloss/", TestGlossView.as_view(), name="test-gloss"),
+    path("api/v1/sign-language/translate-gloss/", TranslateGlossView.as_view(), name="translate-gloss"),
     path("api/v1/sign-language/predict/", ModalPredictView.as_view(), name="predict-modal"),
     path("auth/", TokenObtainPairView.as_view(), name="authtoken"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="authtoken-refresh"),
