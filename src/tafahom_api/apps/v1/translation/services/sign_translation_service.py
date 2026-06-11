@@ -621,16 +621,11 @@ class SignTranslationService:
         )
         if not raw:
             raise ValueError("NLP returned empty output")
-        normalized = normalize_arabic(str(raw))
-        tokens = normalized.split()
-        resolved: List[str] = []
-        for token in tokens:
-            if token in SIGN_MAP or token in ANIMATION_MAP:
-                resolved.append(token)
-                continue
-            mapped = SYNONYM_MAP.get(token)
-            if mapped and (mapped in SIGN_MAP or mapped in ANIMATION_MAP):
-                resolved.append(mapped)
+        from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
+        
+        match_result = translate_to_animation_names(str(raw))
+        resolved = match_result["animations"]
+        
         if not resolved:
             raise ValueError(f"No supported sign tokens found for input: {raw}")
         return resolved
@@ -642,27 +637,20 @@ class SignTranslationService:
         request_id = str(uuid.uuid4())
         start = time.perf_counter()
 
-        # Phase 1: Try direct sign-map match per token
-        normalized = normalize_arabic(text)
-        tokens = normalized.split()
-        resolved: List[str] = []
-        unmatched: List[str] = []
-
-        for token in tokens:
-            if token in SIGN_MAP or token in ANIMATION_MAP:
-                resolved.append(token)
-                continue
-            mapped = SYNONYM_MAP.get(token)
-            if mapped and (mapped in SIGN_MAP or mapped in ANIMATION_MAP):
-                resolved.append(mapped)
-                continue
-            unmatched.append(token)
+        # Phase 1: Try direct phrase/word match using the unified animation service
+        # This handles phrase priorities, synonym replacements, and word boundaries automatically
+        from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
+        
+        match_result = translate_to_animation_names(text)
+        resolved = list(match_result["animations"])
+        unmatched = list(match_result["unknown_words"])
 
         # Phase 2: Send only unmatched words to NLP text-to-gloss
         if unmatched:
             nlp_resp = await cls._with_timeout(
                 TextToGlossClient().text_to_gloss(" ".join(unmatched))
             )
+            # This needs slightly adjusted logic because _extract_gloss also attempts dictionary mapping internally
             nlp_resolved = cls._extract_gloss(nlp_resp)
             resolved.extend(nlp_resolved)
 

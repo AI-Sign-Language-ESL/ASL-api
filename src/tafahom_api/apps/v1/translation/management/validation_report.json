@@ -1,0 +1,47 @@
+{
+  "conflicts": [
+    {
+      "normalized_phrase": "القطر اتاخر ساعه كامله",
+      "entries": [
+        {
+          "original": "القطر اتأخر ساعه كامله",
+          "anim": "el2tr_et25r_sa3a_kamla"
+        },
+        {
+          "original": "القطر اتاخر ساعه كامله",
+          "anim": "el2tr_et25r_sa3a"
+        }
+      ]
+    },
+    {
+      "normalized_phrase": "الكهرباا قطعت فجاه واحنا قاعدين",
+      "entries": [
+        {
+          "original": "الكهرباء قطعت فجأه واحنا قاعدين",
+          "anim": "elkahrba_2t3t_fag2a_we7na_2a3den"
+        },
+        {
+          "original": "الكهرباء قطعت فجاه واحنا قاعدين",
+          "anim": "elkhrb2a_2t3t_fag2a_we7na_2a3den"
+        }
+      ]
+    },
+    {
+      "normalized_phrase": "واضح",
+      "entries": [
+        {
+          "original": "واضح",
+          "anim": "wade7"
+        },
+        {
+          "original": "واضح؟",
+          "anim": "wade7_"
+        }
+      ]
+    }
+  ],
+  "synonym_errors": [],
+  "total_animations": 504,
+  "total_signs": 11,
+  "total_synonyms": 14
+}

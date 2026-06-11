@@ -4,6 +4,7 @@ from collections import defaultdict
 from ..sign_map import (
     ANIMATION_MAP
 )
+from .normalization import normalize_arabic, apply_synonyms
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +15,14 @@ def _build_trie(phrase_map):
     """
     root = {}
     max_depth = 0
+    
+    # Normalize keys in the map before building the trie so lookups don't fail
     for phrase, anim in phrase_map.items():
-        words = phrase.split()
+        norm_phrase = normalize_arabic(phrase)
+        if not norm_phrase:
+            continue
+            
+        words = norm_phrase.split()
         node = root
         for word in words:
             node = node.setdefault(word, {})
@@ -35,19 +42,41 @@ def translate_to_animation_names(text):
     matched_phrases = []
     matched_words = []
 
-    text_clean = text.strip()
-
     logger.info("=" * 50)
-    logger.info("SIGN TRANSLATION INPUT: %r", text_clean)
+    logger.info("SIGN TRANSLATION INPUT (Raw): %r", text)
 
-    # 1️⃣ Check FULL sentence match first
-    if text_clean in ANIMATION_MAP:
-        anim = ANIMATION_MAP[text_clean]
-        animations.append(anim)
+    # 1️⃣ Normalize text and apply synonyms
+    norm_text = normalize_arabic(text)
+    text_clean = apply_synonyms(norm_text)
+    
+    logger.info("SIGN TRANSLATION INPUT (Normalized): %r", text_clean)
+
+    if not text_clean:
+         return {"animations": animations, "unknown_words": unknown_words}
+
+    # 2️⃣ Check FULL sentence match first
+    # Note: ANIMATION_MAP values must be looked up carefully since text_clean is normalized
+    # We can check if it exists in the Trie directly as a single path instead of looking at raw dict
+    words = text_clean.split()
+    n = len(words)
+    
+    # Let's check full sentence match against trie
+    node = _TRIE
+    full_match = None
+    for word in words:
+        if word in node:
+            node = node[word]
+        else:
+            node = None
+            break
+            
+    if node and "_anim" in node:
+        full_match = node["_anim"]
+        animations.append(full_match)
         matched_phrases.append(text_clean)
 
         logger.info("MATCH TYPE       : FULL SENTENCE")
-        logger.info("MATCHED PHRASE   : %r -> %r", text_clean, anim)
+        logger.info("MATCHED PHRASE   : %r -> %r", text_clean, full_match)
         logger.info("FINAL ANIMATIONS : %s", animations)
         logger.info("=" * 50)
 
@@ -56,9 +85,9 @@ def translate_to_animation_names(text):
             "unknown_words": unknown_words,
         }
 
-    # 2️⃣ Trie-based greedy phrase/word matching (O(n * max_depth))
-    words = text_clean.split()
-    n = len(words)
+    # 3️⃣ Trie-based greedy phrase/word matching (O(n * max_depth))
+    # This guarantees longest phrase match first because we search outward to limit, 
+    # and keep updating last_match as long as we stay on a valid path.
     i = 0
 
     while i < n:

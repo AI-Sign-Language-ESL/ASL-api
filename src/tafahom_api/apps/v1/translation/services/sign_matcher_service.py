@@ -35,42 +35,14 @@ def match_sign(text: str) -> dict:
     Deterministic fallback sign matcher.
     Returns: {"source": "sign_matcher", "animations": [...]}
     """
-    normalized_text = normalize_arabic_text(text)
-    animations = []
-    
-    if not normalized_text:
-        return {"source": "sign_matcher", "animations": animations}
+    if not text:
+        return {"source": "sign_matcher", "animations": []}
 
-    # 1. Phrase Matching
-    # Sort synonym map keys by length descending to match longest phrases first
-    sorted_phrases = sorted(SYNONYM_MAP.keys(), key=lambda k: len(k.split()), reverse=True)
+    from tafahom_api.apps.v1.translation.services.animation_service import translate_to_animation_names
     
-    remaining_text = normalized_text
-    
-    for phrase in sorted_phrases:
-        if phrase in remaining_text:
-            logger.info("Sign Matcher phrase match found: %s", phrase)
-            animations.append(SYNONYM_MAP[phrase])
-            # Remove matched phrase to process rest (simplistic approach)
-            remaining_text = remaining_text.replace(phrase, " ")
-            
-    # Clean up remaining text after phrase extraction
-    remaining_text = re.sub(r'\s+', ' ', remaining_text).strip()
-    
-    # 2. Word Matching
-    if remaining_text:
-        words = remaining_text.split()
-        for word in words:
-            # Check synonyms
-            if word in SYNONYM_MAP:
-                animations.append(SYNONYM_MAP[word])
-            else:
-                # If no synonym, we could map it directly to English ascii mapping if needed,
-                # but for now we just append the word as is if it's meant to be an animation name
-                # or skip. We'll append an ascii/latin mapping representation or the word itself.
-                # Per the example, we map words directly to "kef", "halak", "ya", "mohamed"
-                # Let's map directly
-                animations.append(word)
+    # We defer to the unified animation matching engine
+    match_result = translate_to_animation_names(text)
+    animations = match_result["animations"]
 
     logger.info("Sign Matcher fallback used for: %s. Result: %s", text, animations)
     return {
