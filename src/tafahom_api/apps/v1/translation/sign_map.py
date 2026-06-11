@@ -539,7 +539,7 @@ ANIMATION_MAP = {
     "زبادي":"zbady",
     "زبادى":"zbady",
 } 
-SIGN_MAP = {""
+SIGN_MAP = {
     # Emergency
     "اسعاف": "ambulance.mov",
     "نجده": "emergency.mov",

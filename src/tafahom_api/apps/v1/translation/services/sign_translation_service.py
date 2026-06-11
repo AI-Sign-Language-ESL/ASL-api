@@ -671,8 +671,8 @@ class SignTranslationService:
             extra={
                 "request_id": request_id,
                 "gloss": gloss,
-                "direct_match": len(tokens) - len(unmatched),
-                "nlp_match": len(gloss) - (len(tokens) - len(unmatched)),
+                "direct_match": len(resolved),
+                "nlp_match": len(gloss) - len(resolved),
                 "duration_ms": (time.perf_counter() - start) * 1000,
             },
         )
