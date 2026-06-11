@@ -225,8 +225,48 @@ ANIMATION_MAP = {
     "الكلام كان واضح":"elklam_kan_wade7",
     "الكرسي مكسور":"elkorsy_maksor",
     "الكرسى مكسور":"elkorsy_maksor",
-    "":"",
+    "المشروع ده محتاج شغل كتير":"elma4ro3_dh_me7tag_4o8l_kter",
+    "الموضوع بسيط":"elmawdo3_baseet",
+    "المياه سخنه ومش عايزه تبرد": "elmaya_so5na_wmo4_3ayza_tbrd",
+    "الميعاد اتغير":"elme3ad_et8yr",
+    "المكان كان حلو":"elmkan_kan_7elw",
+    "الموبيل فصل شحن":"elmobile_fsl_47n",
+    "الموبايل فصل شحن":"elmobile_fsl_47n",
+    "الموبيل سخن من كتر الاستخدام":"elmobile_so5n_mn_kotr_elest5dam",
+    "الموبايل سخن من كتر الاستخدام":"elmobile_so5n_mn_kotr_elest5dam",
+    "المفتاح تقيل":"elmofta7_t2el",
+    "المطر نزل فجاه":"eltlt_nzl_fg2a",
+    "المطر نزل فجأه":"eltlt_nzl_fg2a",
+    "النت بطيء ومعلق":"elnet_bate2_wm3l2",
+    "الساعه رنت بدري وصحتني من النوم":"elsa3a_rnt_badry_ws7tny_mn_elnoom",
+    "السعر زاد عن المره الي فاتت":"else3r_zad_3n_elmara_ely_fatet",
+    "السجاده محتاجه تتنفض":"elsegada_me7taga_ttnfd",
+    "السماعه بايظه":"elsma3a_bayza",
+    "الصداع مش راضي يخف":"elsoda3_mo4_rady_y5f",
+    "الصوت مش واضح في المكالمه":"elsoot_mo4_wade7_fe_elmokalma",
+    "الصوره مش راضيه تتحمل":"elsora_mo4_radya_tt7ml",
+    "الصوره مش راضيه تحمل":"elsora_mo4_radya_tt7ml",
+    "السرير محتاج يتظبط قبل النوم":"elsrer_me7tag_ytzbt_2bl_elnoom",
+    "السواق مش راضي يوقف":"elswa2_mo4_rady_yw2f",
+    "الطريق مش سهل":"eltare2_mo4_shl",
+    "الطريق متعب":"eltare2_mot3eb",
+    "الطريق زحمه جداّ النهارده":"eltare2_za7ma_gdn_elnaharda",
+    "الطريق زحمه جدا النهارده":"eltare2_za7ma_gdn_elnaharda",
+    "الوقت عدا وانا بتفرج":"elw2t_3da_wana_btfrg",
+    "الوقت بيجري بسرعه":"elw2t_bygry_bsor3a",
+    "الوقت بيجرى بسرعه":"elw2t_bygry_bsor3a",
+    "اليوم كان طويل":"elyoum_kan_tawel",
+    "اتأخرنا علي العزومه":"et25rna_3la_el3zoma",
+    "اتاخرنا علي العزومه":"et25rna_3la_el3zoma",
+    "اتأخرنا على العزومه":"et25rna_3la_el3zoma",
+    "اتاخرنا على العزومه":"et25rna_3la_el3zoma",
+    "اتأخرت عن الميعاد":"et25rt_3n_elme3ad",
+    "اتاخرت عن الميعاد":"et25rt_3n_elme3ad",
 #حرف الضاد
+
+
+
+
     "ضغط":"d8t",
     "ضعيف سمع": "da3ef_sm3",
 #حرف الدال    
@@ -495,7 +535,10 @@ ANIMATION_MAP = {
     "يسيب":"yseb",
     "يتابع":"ytab3",
     "يزق":"yzo2",
-}   
+#حرف الزين
+    "زبادي":"zbady",
+    "زبادى":"zbady",
+} 
 SIGN_MAP = {""
     # Emergency
     "اسعاف": "ambulance.mov",
