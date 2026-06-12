@@ -22,11 +22,19 @@ def _build_trie(phrase_map):
         if not norm_phrase:
             continue
             
-        words = norm_phrase.split()
+        synonym_phrase = apply_synonyms(norm_phrase)
+        if not synonym_phrase:
+            continue
+            
+        words = synonym_phrase.split()
         node = root
         for word in words:
             node = node.setdefault(word, {})
-        node["_anim"] = anim
+        
+        # Prevent duplicate normalized keys from overwriting the first intended animation
+        if "_anim" not in node:
+            node["_anim"] = anim
+            
         if len(words) > max_depth:
             max_depth = len(words)
     return root, max_depth
