@@ -54,74 +54,78 @@ def translate_to_animation_names(text):
     if not text_clean:
          return {"animations": animations, "unknown_words": unknown_words}
 
-    # 2️⃣ Check FULL sentence match first
-    # Note: ANIMATION_MAP values must be looked up carefully since text_clean is normalized
-    # We can check if it exists in the Trie directly as a single path instead of looking at raw dict
     words = text_clean.split()
     n = len(words)
     
-    # Let's check full sentence match against trie
-    node = _TRIE
-    full_match = None
-    for word in words:
-        if word in node:
-            node = node[word]
-        else:
-            node = None
-            break
+    # 2️⃣ Recursive Longest-Match-First Strategy
+    # This guarantees that the globally longest phrases in the sentence are prioritized.
+    # It checks lengths from (end - start) down to 1.
+    def match_segment(start, end):
+        if start >= end:
+            return [], [], [], []
             
-    if node and "_anim" in node:
-        full_match = node["_anim"]
-        animations.append(full_match)
-        matched_phrases.append(text_clean)
-
-        logger.info("MATCH TYPE       : FULL SENTENCE")
-        logger.info("MATCHED PHRASE   : %r -> %r", text_clean, full_match)
-        logger.info("FINAL ANIMATIONS : %s", animations)
-        logger.info("=" * 50)
-
-        return {
-            "animations": animations,
-            "unknown_words": unknown_words,
-        }
-
-    # 3️⃣ Trie-based greedy phrase/word matching (O(n * max_depth))
-    # This guarantees longest phrase match first because we search outward to limit, 
-    # and keep updating last_match as long as we stay on a valid path.
-    i = 0
-
-    while i < n:
-        node = _TRIE
-        last_match = None
-        matched_k = 0
-
-        # Traverse the trie word by word up to max phrase depth
-        limit = min(i + _MAX_PHRASE_DEPTH, n)
-        for j in range(i, limit):
-            word = words[j]
-            if word in node:
-                node = node[word]
-                if "_anim" in node:
-                    last_match = node["_anim"]
-                    matched_k = j - i + 1
+        best_match = None
+        best_i = -1
+        best_k = -1
+        best_phrase = None
+        
+        # Iterate over possible phrase lengths, from longest down to 1
+        for k in range(end - start, 0, -1):
+            for i in range(start, end - k + 1):
+                node = _TRIE
+                found = True
+                for j in range(i, i + k):
+                    word = words[j]
+                    if word in node:
+                        node = node[word]
+                    else:
+                        found = False
+                        break
+                
+                if found and "_anim" in node:
+                    best_match = node["_anim"]
+                    best_i = i
+                    best_k = k
+                    best_phrase = " ".join(words[i:i + k])
+                    break # Found the first (leftmost) match of length k
+            
+            if best_match:
+                break # Found the globally longest match in this segment
+                
+        if best_match:
+            # Recursively process the segment before the match
+            left_anims, left_unknowns, left_mphrases, left_mwords = match_segment(start, best_i)
+            # Recursively process the segment after the match
+            right_anims, right_unknowns, right_mphrases, right_mwords = match_segment(best_i + best_k, end)
+            
+            anims = left_anims + [best_match] + right_anims
+            unknowns = left_unknowns + right_unknowns
+            
+            mphrases = list(left_mphrases)
+            mwords = list(left_mwords)
+            if best_k > 1:
+                mphrases.append(best_phrase)
+                logger.info("MATCHED PHRASE   : %r -> %r", best_phrase, best_match)
             else:
-                break
-
-        if last_match:
-            phrase = " ".join(words[i:i + matched_k])
-            animations.append(last_match)
-            if matched_k > 1:
-                matched_phrases.append(phrase)
-                logger.info("MATCHED PHRASE   : %r -> %r", phrase, last_match)
-            else:
-                matched_words.append(phrase)
-                logger.info("MATCHED WORD     : %r -> %r", phrase, last_match)
-            i += matched_k
+                mwords.append(best_phrase)
+                logger.info("MATCHED WORD     : %r -> %r", best_phrase, best_match)
+                
+            mphrases.extend(right_mphrases)
+            mwords.extend(right_mwords)
+            
+            return anims, unknowns, mphrases, mwords
         else:
-            unmatched_word = words[i]
-            unknown_words.append(unmatched_word)
-            logger.warning("UNKNOWN WORD     : %r", unmatched_word)
-            i += 1
+            # No match found in this segment at all. All words are unknown.
+            unmatched = words[start:end]
+            for u in unmatched:
+                logger.warning("UNKNOWN WORD     : %r", u)
+            return [], unmatched, [], []
+
+    animations, unknown_words, matched_phrases, matched_words = match_segment(0, n)
+
+    if not unknown_words and len(animations) == 1 and matched_phrases and matched_phrases[0] == text_clean:
+        logger.info("MATCH TYPE       : FULL SENTENCE")
+        logger.info("MATCHED PHRASE   : %r -> %r", text_clean, animations[0])
 
     logger.info("MATCHED PHRASES  : %s", matched_phrases)
     logger.info("MATCHED WORDS    : %s", matched_words)
