@@ -7,7 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.views.static import serve
 
 from tafahom_api.apps.v1.translation.views import TestGlossView, ModalPredictView, TranslateGlossView
-
+from tafahom_api.apps.v1.sign_language.views import SignRecognitionView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include("tafahom_api.apps.v1.urls")),
@@ -15,6 +15,8 @@ urlpatterns = [
     path("api/v1/sign-language/test-gloss/", TestGlossView.as_view(), name="test-gloss"),
     path("api/v1/sign-language/translate-gloss/", TranslateGlossView.as_view(), name="translate-gloss"),
     path("api/v1/sign-language/predict/", ModalPredictView.as_view(), name="predict-modal"),
+    # Explicitly requested URL for sign recognition feature
+    path("api/sign-recognition", SignRecognitionView.as_view(), name="sign-recognition"),
     path("auth/", TokenObtainPairView.as_view(), name="authtoken"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="authtoken-refresh"),
     path("docs/", SpectacularSwaggerView.as_view(), name="docs"),
