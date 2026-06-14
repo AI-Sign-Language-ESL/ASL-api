@@ -51,6 +51,7 @@ class StreamingTranslationService:
         self.closed = False
 
         self.partial_text_buffer: List[str] = []
+        self.partial_gloss_buffer: List[str] = []
 
         self.connection_started_at = time.time()
         self.last_heartbeat = time.time()
@@ -131,6 +132,8 @@ class StreamingTranslationService:
 
             # Guard: skip if the stabilizer rejected the prediction (empty gloss/text)
             if result and result.success and result.gloss and result.text:
+                if result.gloss != "NO_SIGN":
+                    self.partial_gloss_buffer.append(result.gloss)
                 self.partial_text_buffer.append(result.text)
         except Exception as e:
             logger.error(f"Error processing landmarks: {e}")
@@ -178,6 +181,7 @@ class StreamingTranslationService:
         self.running = True
         self.last_sent = time.time()
         self.partial_text_buffer.clear()
+        self.partial_gloss_buffer.clear()
 
         async with self.buffer_lock:
             self.frame_buffer.clear()
@@ -328,7 +332,22 @@ class StreamingTranslationService:
         if not self.translation:
             return
 
-        final_text = " ".join(self.partial_text_buffer).strip()
+        full_gloss = " ".join(self.partial_gloss_buffer).strip()
+        final_text = ""
+        
+        if full_gloss:
+            from tafahom_api.apps.v1.ai.clients.nlp_model_client import NLPModelClient
+            try:
+                nlp_res = await NLPModelClient().translate_gloss(full_gloss)
+                if nlp_res and nlp_res.text:
+                    final_text = nlp_res.text
+                else:
+                    final_text = " ".join(self.partial_text_buffer).strip()
+            except Exception as e:
+                logger.error(f"Failed to translate full gloss: {e}")
+                final_text = " ".join(self.partial_text_buffer).strip()
+        else:
+            final_text = " ".join(self.partial_text_buffer).strip()
 
         await self._update_translation(
             output_text=final_text,
