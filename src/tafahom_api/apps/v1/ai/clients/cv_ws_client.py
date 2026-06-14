@@ -176,10 +176,10 @@ class CVModalRESTClient(CVModelClient):
         frames_with_hands = int(np.sum(has_hand))
 
         # Check validation thresholds:
-        # 1. No hands detected for most frames (less than 48 of the 96 frames)
-        # 2. Non-zero count below 3000
+        # 1. No hands detected for most frames (less than 15 of the 96 frames)
+        # 2. Non-zero count below 1000
         # 3. Low movement / static sequence (std < 0.05)
-        if frames_with_hands < 48 or nonzero < 3000 or std < 0.05:
+        if frames_with_hands < 15 or nonzero < 1000 or std < 0.05:
             logger.warning(
                 f"WS Sequence rejected by validation: frames_with_hands={frames_with_hands}/96, nonzero={nonzero}, std={std:.4f}"
             )
