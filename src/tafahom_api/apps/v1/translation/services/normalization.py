@@ -13,6 +13,7 @@ def normalize_arabic(text: str) -> str:
     - Standardizes Waw variants.
     - Removes Tashkeel and Tatweel.
     - Removes punctuation and standardizes whitespace.
+    - Normalizes family and relationship terms by stripping possessive suffixes.
     """
     if not text:
         return ""
@@ -38,7 +39,60 @@ def normalize_arabic(text: str) -> str:
     # Normalize whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     
-    return text
+    # Family and relationship term normalization
+    irregular_map = {
+        "صديقي": "اصدقاء",
+        "اصدقائي": "اصدقاء", "اصدقائهم": "اصدقاء", "اصدقائنا": "اصدقاء",
+        "زميلي": "زملاء",
+        "زملائي": "زملاء", "زملاهم": "زملاء", "زملائنا": "زملاء",
+    }
+    
+    stems_to_canonical = {
+        "ام": "ام",
+        "ابو": "اب",
+        "اب": "اب",
+        "اخو": "اخ",
+        "اخ": "اخ",
+        "اخت": "اخت",
+        "عم": "عم",
+        "عمت": "عمه",
+        "عمه": "عمه",
+        "خال": "خال",
+        "خالت": "خاله",
+        "خاله": "خاله",
+        "جار": "جار"
+    }
+    
+    # Suffixes after letter normalization
+    suffixes = ["يا", "ي", "ها", "هم", "هن", "نا", "كم", "ك", "و", "ه"]
+    
+    words = text.split()
+    normalized_words = []
+    
+    for word in words:
+        if word in irregular_map:
+            normalized_words.append(irregular_map[word])
+            continue
+            
+        # Preserve canonical bases to avoid destroying dictionary mappings (e.g. عمه, خاله)
+        if word in stems_to_canonical.values():
+            normalized_words.append(word)
+            continue
+            
+        matched = False
+        for stem, canonical in stems_to_canonical.items():
+            for suffix in suffixes:
+                if word == stem + suffix:
+                    normalized_words.append(canonical)
+                    matched = True
+                    break
+            if matched:
+                break
+                
+        if not matched:
+            normalized_words.append(word)
+            
+    return " ".join(normalized_words)
 
 def apply_synonyms(text: str) -> str:
     """

@@ -2,7 +2,7 @@ import os
 import django
 
 # Setup django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tafahom_api.settings.dev')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tafahom_api.settings.base')
 os.environ.setdefault('DJANGO_ENV', 'development')
 django.setup()
 

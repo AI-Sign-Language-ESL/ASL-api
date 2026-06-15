@@ -699,11 +699,4 @@ class SignTranslationService:
         return {"text": text, "gloss": result["gloss"], "video": result["video"]}
 
 
-def normalize_arabic(text: str) -> str:
-    text = re.sub("[إأآا]", "ا", text)
-    text = re.sub("ى", "ي", text)
-    text = re.sub("ؤ", "و", text)
-    text = re.sub("ئ", "ي", text)
-    text = re.sub("ة", "ه", text)
-    text = re.sub("[ًٌٍَُِّْ]", "", text)
-    return text.strip()
+from tafahom_api.apps.v1.translation.services.normalization import normalize_arabic

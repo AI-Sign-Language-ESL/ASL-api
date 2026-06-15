@@ -5,6 +5,7 @@ from ..sign_map import (
     ANIMATION_MAP
 )
 from .normalization import normalize_arabic, apply_synonyms
+from .fingerspelling import is_probable_name, fingerspell
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +124,23 @@ def translate_to_animation_names(text):
             
             return anims, unknowns, mphrases, mwords
         else:
-            # No match found in this segment at all. All words are unknown.
-            unmatched = words[start:end]
-            for u in unmatched:
-                logger.warning("UNKNOWN WORD     : %r", u)
-            return [], unmatched, [], []
+            # No match found in this segment at all.
+            unmatched_anims = []
+            unmatched_unknowns = []
+            
+            for idx in range(start, end):
+                u = words[idx]
+                previous_tokens = words[:idx]
+                
+                if is_probable_name(u, previous_tokens):
+                    f_anims = fingerspell(u)
+                    unmatched_anims.extend(f_anims)
+                    logger.info("FINGERSPELL NAME : %r -> %s", u, f_anims)
+                else:
+                    logger.warning("UNKNOWN WORD     : %r", u)
+                    unmatched_unknowns.append(u)
+                    
+            return unmatched_anims, unmatched_unknowns, [], []
 
     animations, unknown_words, matched_phrases, matched_words = match_segment(0, n)
 
