@@ -68,6 +68,11 @@ cd ASL-api
 3. Set up a virtual environment and activate it
 
 ```sh
+# Windows
+python -m venv venv
+.\venv\Scripts\activate
+
+# macOS/Linux
 python3 -m venv venv
 source venv/bin/activate
 ```
@@ -78,13 +83,32 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-5. Apply database migrations
+5. Configure Environment Variables
+
+Ensure you have a `.env.dev` file present in the `ASL-api` directory. It will be loaded automatically by Django for local development since the default mode is set to `DEV`.
+
+6. Apply database migrations
+
+Before migrating, make sure to set `DJANGO_ENV=development` so it uses your local settings and isolated environment.
 
 ```sh
+# Windows (CMD)
+set DJANGO_ENV=development
+python src/manage.py makemigrations sign_language
+python src/manage.py migrate
+
+# Windows (PowerShell)
+$env:DJANGO_ENV="development"
+python src/manage.py makemigrations sign_language
+python src/manage.py migrate
+
+# macOS/Linux
+export DJANGO_ENV=development
+python src/manage.py makemigrations sign_language
 python src/manage.py migrate
 ```
 
-6. Create a superuser for creating the first user
+7. Create a superuser for creating the first user
 
 ```sh
 python src/manage.py createsuperuser
@@ -94,11 +118,21 @@ python src/manage.py createsuperuser
 
 ## Usage 🔧
 
-Here is how to use the project:
+Here is how to run the project locally without affecting the production deployment:
 
-1. Start the development server
+1. Start the development server with the environment flag active
 
 ```sh
+# Windows (CMD)
+set DJANGO_ENV=development
+python src/manage.py runserver
+
+# Windows (PowerShell)
+$env:DJANGO_ENV="development"
+python src/manage.py runserver
+
+# macOS/Linux
+export DJANGO_ENV=development
 python src/manage.py runserver
 ```
 
