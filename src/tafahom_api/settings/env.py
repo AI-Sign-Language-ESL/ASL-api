@@ -20,7 +20,9 @@ if ENVIRONMENT not in ("DEV", "PROD"):
 # LOAD ENV FILE
 # =============================================================================
 env_file = ".env.prod" if ENVIRONMENT == "PROD" else ".env.dev"
-load_dotenv(BASE_DIR / env_file)
+# The .env file is in the project root, which is one level above BASE_DIR (src)
+env_path = BASE_DIR.parent / env_file
+load_dotenv(env_path)
 
 # =============================================================================
 # CORE SECURITY
