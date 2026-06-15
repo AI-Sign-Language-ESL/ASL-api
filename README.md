@@ -17,6 +17,7 @@
       <img alt="GitHub issues" src="https://img.shields.io/github/issues/AI-Sign-Language-ESL/ASL-api">
       <img alt="Python Version" src="https://img.shields.io/badge/python-3.12%2B-blue">
       <img alt="Docker" src="https://img.shields.io/badge/docker-ready-blue">
+    </p>
 </div>
 
 ## About The Project ✨
@@ -26,7 +27,9 @@ It powers real-time and batch translation pipelines using computer vision, NLP, 
 
 The system is built with scalability and real-time performance in mind, supporting both **REST APIs** and **WebSocket streaming**.
 
-### Key Features 🚀
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Key Features 🚀
 
 - 🤟 **Sign → Text Translation** (real-time & batch)
 - 📝 **Text → Sign Translation** with generated sign videos
@@ -37,7 +40,20 @@ The system is built with scalability and real-time performance in mind, supporti
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<a id="getting-started"></a>
+## Tech Stack 🛠️
+
+| Technology | Purpose |
+|------------|---------|
+| **Python** | Primary Language |
+| **Django** | Web Framework |
+| **Django Channels** | WebSocket Support |
+| **PostgreSQL** | Relational Database |
+| **Redis** | Message Broker & Cache |
+| **Docker** | Containerization |
+| **MediaPipe** | Computer Vision Framework |
+| **Transformers** | AI & NLP Models |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Getting Started 🚀
 
@@ -137,6 +153,16 @@ python src/manage.py runserver
 ```
 
 2. Visit `http://127.0.0.1:8000` in your browser.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Deployment 🚀
+
+The project is configured for easy deployment using Docker.
+
+```sh
+docker-compose up --build -d
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
