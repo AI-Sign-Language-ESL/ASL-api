@@ -570,7 +570,7 @@ ANIMATION_MAP = {
 
     "حسابك":"felos",
     "حساب":"felos",
-    "45": "45",
+    "45": "45_number",
 } 
 SIGN_MAP = {
     # Emergency
