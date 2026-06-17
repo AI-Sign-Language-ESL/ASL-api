@@ -567,6 +567,10 @@ ANIMATION_MAP = {
     "ذ":"zal",
 #حرف الظاء
     "ظ":"za",
+
+    "حسابك":"felos",
+    "حساب":"felos",
+    "45": "45",
 } 
 SIGN_MAP = {
     # Emergency
