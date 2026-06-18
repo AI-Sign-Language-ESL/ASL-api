@@ -160,6 +160,9 @@ ANIMATION_MAP = {
     "ان شاء الله":"inshallah", 
     "أم":"om",
     "ام":"om",
+    "ازيك": "ezayk",
+    "أزيك": "ezayk",
+    
     "ألف هنا":"bl4efa",
     "الف هنا":"bl4efa",
     "اقسم بالله":"walahy",
