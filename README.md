@@ -22,7 +22,7 @@
 
 ## About The Project ✨
 
-**Tafahom ASL API** is a backend system designed to bridge communication gaps by translating **Arabic Sign Language (ASL)** into text and voice, and vice versa.  
+**Tafahom ASL API** is a backend system designed to bridge communication gaps by translating **Egyptian Sign Language (ESL)** into text and voice, and vice versa.  
 It powers real-time and batch translation pipelines using computer vision, NLP, and speech technologies.
 
 The system is built with scalability and real-time performance in mind, supporting both **REST APIs** and **WebSocket streaming**.
