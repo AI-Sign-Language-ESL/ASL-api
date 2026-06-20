@@ -50,8 +50,7 @@ The system is built with scalability and real-time performance in mind, supporti
 | **PostgreSQL** | Relational Database |
 | **Redis** | Message Broker & Cache |
 | **Docker** | Containerization |
-| **MediaPipe** | Computer Vision Framework |
-| **Transformers** | AI & NLP Models |
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
